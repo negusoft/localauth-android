@@ -67,6 +67,14 @@ object KeyStoreAccess {
 
     class Entry(private val spec: KeyGenParameterSpec) {
 
+        fun encrypt(data: ByteArray): ByteArray {
+            val alias = spec.keystoreAlias
+
+            // Encrypt the data with using the keystore entry
+            val cipher = getEncryptCipherAES(spec)
+            return cipher.encrypt(data)
+        }
+
         /**
          * Store the data in the shared preference.
          * The keys in the shared preference are prefixed by the entry alias.
@@ -136,6 +144,13 @@ object KeyStoreAccess {
             }
 
             return true
+        }
+
+        fun decrypt(encryptedData: ByteArray): ByteArray? {
+            val iv = encryptedData.copyOfRange(0, IV_SIZE_IN_BYTES)
+            // Decrypt the data using the keystore entry
+            val cipher = getDecryptCipherAES(spec, iv) ?: return null
+            return cipher.decrypt(encryptedData)
         }
 
         /** Get the decrypted bytes from shored preferences. */

@@ -60,21 +60,18 @@ object CryptoUtils {
      * Decrypt data using the given password (AES-GCM encryption).
      * The ciphertext musut have the following format: [IV(12) + ENCRYPTED_BYTES(n) + TAG(16)]
      */
-    fun decrypt(ciphertext: ByteArray, ciphertextOffset: Int, secretKey: SecretKey): ByteArray? {
-        try {
-            val params = GCMParameterSpec(8 * TAG_SIZE_IN_BYTES, ciphertext, ciphertextOffset, IV_SIZE_IN_BYTES)
-            val cipher = Cipher.getInstance(ENCRYPTION_ALGORITHM).apply {
-                init(Cipher.DECRYPT_MODE, secretKey, params)
-            }
-            return cipher.doFinal(ciphertext, ciphertextOffset + IV_SIZE_IN_BYTES, ciphertext.size - IV_SIZE_IN_BYTES - ciphertextOffset)
-        } catch (e: Throwable) {
-            e.printStackTrace()
-            return null
+    @Throws
+    fun decrypt(ciphertext: ByteArray, ciphertextOffset: Int, secretKey: SecretKey): ByteArray {
+        val params = GCMParameterSpec(8 * TAG_SIZE_IN_BYTES, ciphertext, ciphertextOffset, IV_SIZE_IN_BYTES)
+        val cipher = Cipher.getInstance(ENCRYPTION_ALGORITHM).apply {
+            init(Cipher.DECRYPT_MODE, secretKey, params)
         }
+        return cipher.doFinal(ciphertext, ciphertextOffset + IV_SIZE_IN_BYTES, ciphertext.size - IV_SIZE_IN_BYTES - ciphertextOffset)
     }
 
     /** See the other decrypt method. */
-    fun decrypt(ciphertext: ByteArray, secretKey: SecretKey): ByteArray? =
+    @Throws
+    fun decrypt(ciphertext: ByteArray, secretKey: SecretKey): ByteArray =
         decrypt(ciphertext, 0, secretKey)
 
     /** Use PBE algorithm to derive a secret key from the given password */
@@ -104,7 +101,7 @@ object CryptoUtils {
     }
 
     /** Decode the secret key that was returned by SecretKey.getEncoded() */
-    fun decodeSecretKey(bytes: ByteArray): SecretKey? {
+    fun decodeSecretKey(bytes: ByteArray): SecretKey {
         return SecretKeySpec(bytes, 0, bytes.size, "AES")
     }
 

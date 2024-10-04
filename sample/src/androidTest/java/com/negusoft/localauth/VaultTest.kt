@@ -5,6 +5,9 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.negusoft.localauth.vault.LocalVault
+import com.negusoft.localauth.vault.lock.PinLock
+import com.negusoft.localauth.vault.lock.PinLockException
 
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,7 +30,44 @@ class VaultTest {
     }
 
     @Test
-    fun createStoreAndRetrieve() {
+    fun createEncryptDecrypt() {
+        lateinit var encodedPinLock: ByteArray
+        val vault = LocalVault.create { openVault ->
+            val pinLock = openVault.registerPinLock("lockId", "12345")
+            encodedPinLock = pinLock.encode()
+        }
+
+        val encoded = vault.encode()
+
+        val restored = LocalVault.restore(encoded)
+        val secret = "Hello, Vault!".toByteArray()
+        val encryptedSecret = restored.encrypt(secret)
+
+        val pinLock = PinLock.restore(encodedPinLock)
+        val openVault = restored.open(pinLock, "12345")
+        val decryptedSecret = openVault.decrypt(encryptedSecret)
+
+        assert(decryptedSecret.contentEquals("Hello, Vault!".toByteArray()))
+    }
+
+    @Test
+    fun testPinLock() {
+        lateinit var pinLock: PinLock
+        val vault = LocalVault.create { openVault ->
+            pinLock = openVault.registerPinLock("lockId", "12345")
+        }
+
+        assertThrows(PinLockException::class.java) {
+            vault.open(pinLock, "wrong")
+        }
+
+        vault.open(pinLock, "12345")
+    }
+
+    // ------------ OLD
+
+    @Test
+    fun createStoreAndRetrieveOld() {
         // Set up new Vault with pin lock
         LocalAuth.createNewVault(prefs, "test_vault").apply {
             registerPinLock("12345")
@@ -50,7 +90,7 @@ class VaultTest {
     }
 
     @Test
-    fun testPinLock() {
+    fun testPinLockOld() {
         val vault = LocalAuth.createNewVault(prefs, "test_vault").apply {
             registerPinLock("12345")
         }.closed()
