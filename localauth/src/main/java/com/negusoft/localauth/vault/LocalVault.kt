@@ -5,6 +5,9 @@ import androidx.core.content.edit
 import com.negusoft.localauth.crypto.CryptoUtils
 import com.negusoft.localauth.crypto.CryptoUtilsRSA
 import com.negusoft.localauth.keystore.KeyStoreAccess
+import com.negusoft.localauth.persistence.ByteCoding
+import com.negusoft.localauth.persistence.ByteCodingException
+import com.negusoft.localauth.persistence.writeProperty
 import com.negusoft.localauth.preferences.getByteArray
 import com.negusoft.localauth.preferences.putByteArray
 import com.negusoft.localauth.preferences.putEncrypted
@@ -28,25 +31,23 @@ data class EncryptedValue(
 
         @Throws(LocalVaultException::class)
         fun decode(encoded: ByteArray): EncryptedValue {
-            if (encoded.isEmpty())
-                throw LocalVaultException("Empty data.")
-            if (encoded[0] != EncryptedValue.ENCODING_VERSION)
-                throw LocalVaultException("Wrong encoding version (${encoded[0]}).")
-            if (encoded.size < 2)
-                throw LocalVaultException("Not enough data")
-            val encryptedKeySize = encoded[1]
-            val encryptedDataIndex = 2 + encryptedKeySize
-            val encryptedKey = if (encryptedKeySize > 0)
-                encoded.copyOfRange(2, encryptedDataIndex)
-            else null
-            val encryptedData = encoded.copyOfRange(encryptedDataIndex, encoded.size)
-            return EncryptedValue(encryptedKey, encryptedData)
+            try {
+                val decoder = ByteCoding.decode(encoded)
+                if (!decoder.checkValueEquals(byteArrayOf(ENCODING_VERSION))) {
+                    throw LocalVaultException("Wrong encoding version (${encoded[0]}).")
+                }
+                val encryptedKey = decoder.readProperty()
+                val encryptedData = decoder.readFinal()
+                return EncryptedValue(encryptedKey, encryptedData)
+            } catch (e: ByteCodingException) {
+                throw LocalVaultException("Failed to decode encrypted value.", e)
+            }
         }
     }
 
-    fun encode(): ByteArray {
-        val encryptedKeySize = (encryptedKey?.size ?: 0).toByte()
-        return byteArrayOf(ENCODING_VERSION, encryptedKeySize, *(encryptedKey ?: byteArrayOf()), *encryptedData)
+    fun encode() = ByteCoding.encode(byteArrayOf(ENCODING_VERSION)) {
+        writeProperty(encryptedKey)
+        writeValue(encryptedData)
     }
 
 }
@@ -88,12 +89,11 @@ class LocalVault private constructor(
 
         @Throws(LocalVaultException::class)
         private fun decodePublicKey(encoded: ByteArray): PublicKey {
-            if (encoded.isEmpty())
-                throw LocalVaultException("Empty data.")
-            if (encoded[0] != ENCODING_VERSION)
+            val decoder = ByteCoding.decode(encoded)
+            if (!decoder.checkValueEquals(byteArrayOf(ENCODING_VERSION)))
                 throw LocalVaultException("Wrong encoding version (${encoded[0]}).")
-
-            val keyBytes = encoded.copyOfRange(1, encoded.size)
+            
+            val keyBytes = decoder.readFinal()
             return CryptoUtilsRSA.decodePublicKey(keyBytes) ?: throw LocalVaultException("Failed to decode public key")
         }
     }
@@ -169,7 +169,7 @@ class LocalVault private constructor(
         }
     }
 
-    fun encode(): ByteArray {
-        return byteArrayOf(ENCODING_VERSION, *publicKey.encoded)
+    fun encode() = ByteCoding.encode(byteArrayOf(ENCODING_VERSION)) {
+        writeValue(publicKey.encoded)
     }
 }

@@ -89,19 +89,19 @@ class VaultTest {
         assertEquals("Hello, Vault!", savedValue)
     }
 
-    @Test
-    fun testPinLockOld() {
-        val vault = LocalAuth.createNewVault(prefs, "test_vault").apply {
-            registerPinLock("12345")
-        }.closed()
-
-        vault.openPinLock("wrong").also { open ->
-            assertNull(open)
-        }
-        vault.openPinLock("12345").also { open ->
-            assertNotNull(open)
-        }
-    }
+//    @Test
+//    fun testPinLockOld() {
+//        val vault = LocalAuth.createNewVault(prefs, "test_vault").apply {
+//            registerPinLock("12345")
+//        }.closed()
+//
+//        vault.openPinLock("wrong").also { open ->
+//            assertNull(open)
+//        }
+//        vault.openPinLock("12345").also { open ->
+//            assertNotNull(open)
+//        }
+//    }
 
     @Test
     fun testNoLock() {

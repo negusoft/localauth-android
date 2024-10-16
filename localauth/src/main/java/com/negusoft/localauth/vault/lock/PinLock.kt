@@ -3,6 +3,9 @@ package com.negusoft.localauth.vault.lock
 import com.negusoft.localauth.crypto.CryptoUtils
 import com.negusoft.localauth.crypto.PasswordEncryptedData
 import com.negusoft.localauth.keystore.KeyStoreAccess
+import com.negusoft.localauth.persistence.ByteCoding
+import com.negusoft.localauth.persistence.readStringProperty
+import com.negusoft.localauth.persistence.writeProperty
 
 class PinLockException(message: String, cause: Throwable? = null): Exception(message, cause)
 
@@ -29,16 +32,12 @@ class PinLock(val keystoreAlias: String, private val encryptedSecret: ByteArray)
 
         @Throws(PinLockException::class)
         fun restore(encoded: ByteArray): PinLock {
-            if (encoded.isEmpty())
-                throw PinLockException("Empty data.")
-            if (encoded[0] != ENCODING_VERSION)
+            val decoder = ByteCoding.decode(encoded)
+            if (!decoder.checkValueEquals(byteArrayOf(ENCODING_VERSION))) {
                 throw PinLockException("Wrong encoding version (${encoded[0]}).")
-            if (encoded.size < 2)
-                throw PinLockException("Not enough data")
-            val aliasSize = encoded[1]
-            val encryptedSecretIndex = 2 + aliasSize
-            val alias = encoded.copyOfRange(2, encryptedSecretIndex).toString(Charsets.UTF_8)
-            val encryptedSecret = encoded.copyOfRange(encryptedSecretIndex, encoded.size)
+            }
+            val alias = decoder.readStringProperty() ?: throw PinLockException("Failed to decode 'alias'.")
+            val encryptedSecret = decoder.readFinal()
             return PinLock(alias, encryptedSecret)
         }
     }
@@ -63,9 +62,9 @@ class PinLock(val keystoreAlias: String, private val encryptedSecret: ByteArray)
     }
 
     fun encode(): ByteArray {
-        if (keystoreAlias.length > UByte.MAX_VALUE.toInt())
-            throw RuntimeException("KeystoreAlias is too long for encoding.")
-        val aliasSize = keystoreAlias.length.toByte()
-        return byteArrayOf(ENCODING_VERSION, aliasSize, *keystoreAlias.encodeToByteArray(), *encryptedSecret)
+        return ByteCoding.encode(prefix = byteArrayOf(ENCODING_VERSION)) {
+            writeProperty(keystoreAlias)
+            writeValue(encryptedSecret)
+        }
     }
 }

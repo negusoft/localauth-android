@@ -41,7 +41,7 @@ object ByteCoding {
             .encode()
     }
 
-    fun decode():
+    fun decode(bytes: ByteArray, startIndex: Int = 0) = ByteDecoder(bytes, startIndex)
 }
 
 interface EncoderContext {
@@ -62,7 +62,7 @@ class ByteEncoder(
      * writeProperty(null) === writeProperty(byteArrayOf())
      */
     override fun writeProperty(property: ByteArray?) {
-        val size = property.size
+        val size = property?.size ?: 0
         if (size > Byte.MAX_VALUE.toInt())
             throw ByteCodingException("Property exceeds max size (${Byte.MAX_VALUE})")
 
@@ -91,26 +91,68 @@ class ByteEncoder(
     }
 }
 
-class ByteDecoder(startIndex: Int, val bytes: ByteArray) {
+class ByteDecoder(val bytes: ByteArray, startIndex: Int) {
     private var i = startIndex
 
     /** Read a property in length-value format. It returns null for 0 length properties. */
+    @Throws(ByteCodingException::class)
     fun readProperty(): ByteArray? {
-        val size = bytes[i].toInt()
-        i += 1
-        val result = when {
-            size == 0 -> null
-            size < 0 -> throw ByteCodingException("Invalid property size ($size)")
-            else -> bytes.copyOfRange(fromIndex = i, toIndex = i + size)
-        }
-        i += size
-
-        return result
+        val size = readSize()
+        return readBytes(size)
     }
 
-    fun readValue(size: Int): ByteArray {
-        val result = bytes.copyOfRange(fromIndex = i, toIndex = i + size)
-        i += size
+    /** Read the number of bytes specified. */
+    @Throws(ByteCodingException::class)
+    fun readValue(size: Int) = readBytes(size)
+
+
+    /**
+     * Read the sample length as the provided array and compare the contents.
+     * Returns true if the bytes are the same, false otherwise.
+     */
+    @Throws(ByteCodingException::class)
+    fun checkValueEquals(bytes: ByteArray): Boolean {
+        val value = readBytes(bytes.size)
+        return value.contentEquals(bytes)
+    }
+
+    /** Read the number of bytes specified. */
+    @Throws(ByteCodingException::class)
+    private fun readBytes(size: Int): ByteArray {
+        try {
+            val result = bytes.copyOfRange(fromIndex = i, toIndex = i + size)
+            i += size
+            return result
+        } catch (e: IndexOutOfBoundsException) {
+            throw ByteCodingException("Not enough data. Requested $size byte but only ${bytes.size - i} available (index=$i)", e)
+        }
+    }
+
+    /**
+     * Read the size of the property.
+     * Stored in one byte, will throw an error if the value can't be read or is a negative value.
+     */
+    @Throws(ByteCodingException::class)
+    private fun readSize(): Int {
+        try {
+            val size = bytes[i].toInt()
+            if (size < 0)
+                throw ByteCodingException("Invalid property size read ($size)")
+            i += 1
+            return size
+        } catch (e: IndexOutOfBoundsException) {
+            throw ByteCodingException("Not enough data to read property size", e)
+        }
+    }
+
+    /** Read the remaining bytes. */
+    fun readFinal(): ByteArray {
+        val result = bytes.copyOfRange(fromIndex = i, toIndex = bytes.size)
+        i = bytes.size
         return result
     }
 }
+
+// String
+fun ByteDecoder.readStringProperty(): String? = readProperty()?.toString(Charsets.UTF_8)
+fun EncoderContext.writeProperty(value: String) { writeProperty(value.toByteArray(Charsets.UTF_8)) }
