@@ -1,9 +1,10 @@
+import com.android.build.gradle.internal.scope.ProjectInfo.Companion.getBaseName
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.ksp)
-    alias(libs.plugins.hilt.android)
     alias(libs.plugins.compose.compiler)
 }
 
@@ -65,10 +66,10 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.navigation.compose)
 
-    // Hilt
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.android.compiler)
+    // Dependency Injection
+    implementation(libs.koin.androidx.compose.navigation)
 
     // Serialization
     implementation(libs.kotlin.serialization)

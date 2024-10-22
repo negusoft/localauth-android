@@ -5,21 +5,15 @@ import androidx.core.content.edit
 import com.negusoft.localauth.persistence.SharedPreferencesDataStore
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.vault.create
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.encodeToJsonElement
-import javax.inject.Inject
-import javax.inject.Singleton
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-@Singleton
-class VaultManager @Inject constructor(
-    @ApplicationContext context: Context
+class VaultManager(
+    context: Context
 ) {
     private val prefs = context.getSharedPreferences("VaultManager", Context.MODE_PRIVATE)
     private val datastore = SharedPreferencesDataStore(prefs)
