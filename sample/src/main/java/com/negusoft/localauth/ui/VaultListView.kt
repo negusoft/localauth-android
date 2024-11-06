@@ -31,6 +31,7 @@ import androidx.lifecycle.ViewModel
 import com.negusoft.localauth.core.VaultManager
 import com.negusoft.localauth.core.VaultModel
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
+import com.negusoft.localauth.vault.LocalVault
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -39,18 +40,20 @@ class VaultListViewModel(
     private val manager: VaultManager
 ): ViewModel() {
 
-    val vaults = MutableStateFlow(manager.getVaults())
+    val vaults = manager.vaults
+
+    init {
+        manager.initialize()
+    }
 
     @OptIn(ExperimentalUuidApi::class)
     fun createVault() {
         manager.createVault(Uuid.random().toString(), "supersafepassword")
-        vaults.value = manager.getVaults()
     }
 //    fun getVaults() = manager.getVaults()
 
     fun deleteVault(vault: VaultModel) {
         manager.deleteVault(vault)
-        vaults.value = manager.getVaults()
     }
 }
 
@@ -63,7 +66,7 @@ object VaultListView {
     ) {
         val vaults = viewModel.vaults.collectAsState()
         Content(
-            vaults = vaults.value,
+            vaults = vaults.value ?: listOf(),
             selectVault = onSelected,
             createVault = viewModel::createVault,
             deleteVault = viewModel::deleteVault
@@ -152,8 +155,8 @@ private fun Preview() {
 
 object SampleData {
     val vaults = listOf(
-        VaultModel.vault("1234-1234-1234", "First"),
-        VaultModel.vault("2345-2345-2345", "Second"),
-        VaultModel.vault("3456-3456-3456", "Third")
+        VaultModel.vault("1234-1234-1234", "First", LocalVault.create {  }.encode()),
+        VaultModel.vault("2345-2345-2345", "Second", LocalVault.create {  }.encode()),
+        VaultModel.vault("3456-3456-3456", "Third", LocalVault.create {  }.encode())
     )
 }
