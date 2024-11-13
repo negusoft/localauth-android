@@ -89,4 +89,16 @@ class ByteCodingTest {
             decoder.readProperty()
         }
     }
+
+    @Test
+    fun nullAndEmptyByteArrays() {
+        val encoded = ByteCoding.encode {
+            writeProperty(null)
+            writeProperty(byteArrayOf())
+        }
+        val decoder = ByteCoding.decode(encoded)
+
+        assertNull(decoder.readProperty())
+        assertNull(decoder.readProperty())
+    }
 }

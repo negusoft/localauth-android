@@ -3,12 +3,12 @@ package com.negusoft.localauth.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -24,14 +24,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.ViewModel
 import com.negusoft.localauth.R
-import com.negusoft.localauth.core.LockedValueReference
+import com.negusoft.localauth.core.SecretValueModel
 import com.negusoft.localauth.core.VaultManager
 import com.negusoft.localauth.ui.VaultDetailsView.NewValueDialog
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
@@ -56,6 +56,11 @@ class VaultDetailsViewModel(
         vault.value = manager.newSecretValue(vault.value, key, value)
     }
 
+    fun readSecretValue(value: SecretValueModel, pin: String): String {
+        val vault = vault.value
+        return vault.readValueWithPin(value, pin)
+    }
+
 }
 
 object VaultDetailsView {
@@ -76,10 +81,23 @@ object VaultDetailsView {
                 }
             )
         }
+
+        val valueToShow = remember { mutableStateOf<String?>(null) }
+        valueToShow.value?.let { value ->
+            AlertDialog(
+                onDismissRequest = { valueToShow.value = null },
+                confirmButton = { },
+                text = { Text(text = value) }
+            )
+        }
+
         Content(
             title = viewModel.title,
-            values = vault.value.values,
+            values = vault.value.secretValues,
             onNewValue = { showNewValueDialog.value = true },
+            onReadValue = {
+                valueToShow.value = viewModel.readSecretValue(it, "supersafepassword")
+            },
             onUp = onUp,
             onDelete = {
                 viewModel.delete()
@@ -91,8 +109,9 @@ object VaultDetailsView {
     @Composable
     fun Content(
         title: String,
-        values: List<LockedValueReference>,
+        values: List<SecretValueModel>,
         onNewValue: () -> Unit,
+        onReadValue: (SecretValueModel) -> Unit,
         onUp: () -> Unit,
         onDelete: () -> Unit
     ) {
@@ -107,11 +126,17 @@ object VaultDetailsView {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(values) { value ->
-                    Column(
-                        modifier = Modifier.padding(8.dp)
+                    Row(
+                        modifier = Modifier.padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(text = value.id)
-                        Text(text = value.description)
+                        Column(Modifier.weight(1f)) {
+                            Text(text = value.id)
+                            Text(text = value.description)
+                        }
+                        TextButton(onClick = { onReadValue(value) }) {
+                            Text(text = "Read value")
+                        }
                     }
                     HorizontalDivider()
                 }
@@ -202,7 +227,7 @@ object VaultDetailsView {
 @Composable
 private fun Preview() {
     LocalAuthTheme {
-        val showNewValueDialog = remember { mutableStateOf(true) }
+        val showNewValueDialog = remember { mutableStateOf(false) }
         if (showNewValueDialog.value) {
             NewValueDialog(
                 onDismissRequest = { showNewValueDialog.value = false },
@@ -210,14 +235,24 @@ private fun Preview() {
             )
         }
 
+        val secretValue = remember { mutableStateOf<String?>(null) }
+        secretValue.value?.let { value ->
+            AlertDialog(
+                onDismissRequest = { secretValue.value = null },
+                confirmButton = { },
+                text = { Text(text = value) }
+            )
+        }
+
         VaultDetailsView.Content(
             title = "TITLE",
             values = listOf(
-                LockedValueReference("id1", "desc1"),
-                LockedValueReference("id2", "desc2"),
-                LockedValueReference("id3", "desc3"),
+                SecretValueModel("id1", "desc1", byteArrayOf()),
+                SecretValueModel("id2", "desc2", byteArrayOf()),
+                SecretValueModel("id3", "desc3", byteArrayOf()),
             ),
             onNewValue = { showNewValueDialog.value = true },
+            onReadValue = { secretValue.value = it.id },
             onUp = {},
             onDelete = {}
         )
