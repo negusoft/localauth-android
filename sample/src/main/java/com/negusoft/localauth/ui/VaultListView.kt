@@ -6,28 +6,45 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Card
+import androidx.compose.material3.ChipColors
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
+import com.negusoft.localauth.R
 import com.negusoft.localauth.core.VaultManager
 import com.negusoft.localauth.core.VaultModel
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
@@ -103,7 +120,9 @@ object VaultListView {
                     VaultListItem(
                         vault = vault,
                         selectVault = selectVault,
-                        deleteVault = deleteVault
+                        deleteVault = deleteVault,
+                        pinLockEnabled = vault.pinLockEnabled,
+                        biometricLockEnabled = false
                     )
                 }
             }
@@ -116,12 +135,14 @@ object VaultListView {
         LargeTopAppBar(title = { Text(text = "My Vaults") })
     }
 
-    @OptIn(ExperimentalFoundationApi::class)
+    @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
     @Composable
     private fun VaultListItem(
         vault: VaultModel,
         selectVault: (VaultModel) -> Unit,
-        deleteVault: (VaultModel) -> Unit
+        deleteVault: (VaultModel) -> Unit,
+        pinLockEnabled: Boolean,
+        biometricLockEnabled: Boolean
     ) {
         Card(
             modifier = Modifier
@@ -130,10 +151,53 @@ object VaultListView {
                     onLongClick = { println("------- ASDF2"); deleteVault(vault) },
                     onClick = { println("------- ASDF"); selectVault(vault) }
                 ),
+            shape = RoundedCornerShape(16.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth()
+            ) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp, alignment = Alignment.End)
+                ) {
+                    if (pinLockEnabled)
+                        LockTypeIndicator(color = Color.Blue.copy(alpha = 0.2f), text = "biometric", icon = painterResource(id = R.drawable.ic_back_24))
+                    if (biometricLockEnabled)
+                        LockTypeIndicator(color = Color.Green.copy(alpha = 0.2f), text = "pin code", icon = painterResource(id = R.drawable.ic_back_24))
+                    if (!pinLockEnabled && !biometricLockEnabled)
+                        LockTypeIndicator(color = Color.Red.copy(alpha = 0.2f), text = "no locks available", icon = rememberVectorPainter(Icons.Outlined.Warning))
+
+                }
                 Text(text = vault.name, style = MaterialTheme.typography.headlineSmall)
                 Text(text = vault.id, style = MaterialTheme.typography.titleSmall)
+            }
+        }
+    }
+
+    @Composable
+    fun LockTypeIndicator(color: Color, text: String, icon: Painter? = null) {
+        Surface(
+            color = color,
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (icon != null) {
+                    Icon(
+                        modifier = Modifier.size(16.dp),
+                        painter = icon,
+                        contentDescription = text
+                    )
+                }
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
         }
     }
@@ -155,7 +219,7 @@ private fun Preview() {
 
 object SampleData {
     val vaults = listOf(
-        VaultModel.vault("1234-1234-1234", "First", LocalVault.create{}),
+        VaultModel.vault("1234-1234-1234", "First", LocalVault.create{}).modify(pinLockEncoded = byteArrayOf()),
         VaultModel.vault("2345-2345-2345", "Second", LocalVault.create{}),
         VaultModel.vault("3456-3456-3456", "Third", LocalVault.create{})
     )

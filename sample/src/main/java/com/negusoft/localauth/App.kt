@@ -1,9 +1,8 @@
 package com.negusoft.localauth
 
 import android.app.Application
-import androidx.annotation.Keep
 import com.negusoft.localauth.core.VaultManager
-import com.negusoft.localauth.ui.VaultDetailsViewModel
+import com.negusoft.localauth.ui.details.VaultDetailsViewModel
 import com.negusoft.localauth.ui.VaultListViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger

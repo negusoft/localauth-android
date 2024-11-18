@@ -109,16 +109,27 @@ class VaultModel private constructor(
         }
     }
 
-    val pinLock: PinLock? get() = pinLockEncoded?.let { PinLock.restore(it) }
+    val pinLockEnabled get() = pinLockEncoded != null
+    val pinLock: PinLock? by lazy { pinLockEncoded?.let { PinLock.restore(it) } }
 
     fun readValueWithPin(value: SecretValueModel, pin: String): String {
+//        val pinLock = pinLock ?: throw IllegalStateException("No pin lock")
+//
+//        val openVault = vault.open(pinLock, pin)
+//        val resultBytes = openVault.decrypt(value.encryptedValue)
+//        openVault.close()
+//
+//        return resultBytes.toString(Charsets.UTF_8)
+        val openVault = open(pin)
+        return openVault.readValue(value).also {
+            openVault.close()
+        }
+    }
+
+    fun open(pin: String): OpenVaultModel {
         val pinLock = pinLock ?: throw IllegalStateException("No pin lock")
-
         val openVault = vault.open(pinLock, pin)
-        val resultBytes = openVault.decrypt(value.encryptedValue)
-        openVault.close()
-
-        return resultBytes.toString(Charsets.UTF_8)
+        return OpenVaultModel(openVault)
     }
 
     fun modify(
@@ -126,6 +137,20 @@ class VaultModel private constructor(
         pinLockEncoded: ByteArray? = this.pinLockEncoded,
         values: List<SecretValueModel> = this.secretValues
     ) = VaultModel(id, name, encoded, pinLockEncoded, values, _vault)
+}
+
+class OpenVaultModel(
+//    val vault: VaultModel,
+    private val openVault: LocalVault.OpenVault
+) {
+    fun readValue(value: SecretValueModel): String {
+        val resultBytes = openVault.decrypt(value.encryptedValue)
+        return resultBytes.toString(Charsets.UTF_8)
+    }
+
+    fun close() {
+        openVault.close()
+    }
 }
 
 @Serializable

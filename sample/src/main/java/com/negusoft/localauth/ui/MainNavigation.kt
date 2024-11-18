@@ -6,7 +6,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import com.negusoft.localauth.core.VaultModel
+import com.negusoft.localauth.ui.details.VaultDetailsView
+import com.negusoft.localauth.ui.details.VaultDetailsViewModel
 import kotlinx.serialization.Serializable
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf

@@ -1,23 +1,33 @@
-package com.negusoft.localauth.ui
+package com.negusoft.localauth.ui.details
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,14 +36,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
-import com.negusoft.localauth.R
+import com.negusoft.localauth.core.OpenVaultModel
 import com.negusoft.localauth.core.SecretValueModel
 import com.negusoft.localauth.core.VaultManager
-import com.negusoft.localauth.ui.VaultDetailsView.NewValueDialog
+import com.negusoft.localauth.ui.details.VaultDetailsView.NewValueDialog
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -44,9 +54,17 @@ class VaultDetailsViewModel(
 
     val title: String get() = vault.value.id
 
+    val isOpen = MutableStateFlow(false)
+    private var openVault: OpenVaultModel? = null
+
     val vault = MutableStateFlow(
         manager.getVaultById(vaultId) ?: error("No vault for id $vaultId")
     )
+
+    fun unlockWithPinCode() {
+        openVault = vault.value.open("supersafepassword")
+        isOpen.value = true
+    }
 
     fun delete() {
         manager.deleteVault(vault.value)
@@ -94,6 +112,7 @@ object VaultDetailsView {
         Content(
             title = viewModel.title,
             values = vault.value.secretValues,
+            open = viewModel.isOpen.collectAsState().value,
             onNewValue = { showNewValueDialog.value = true },
             onReadValue = {
                 valueToShow.value = viewModel.readSecretValue(it, "supersafepassword")
@@ -102,7 +121,9 @@ object VaultDetailsView {
             onDelete = {
                 viewModel.delete()
                 onUp()
-            }
+            },
+            onUnlockWithPin = viewModel::unlockWithPinCode,
+            onUnlockWithBiometric = { TODO() }
         )
     }
 
@@ -110,14 +131,17 @@ object VaultDetailsView {
     fun Content(
         title: String,
         values: List<SecretValueModel>,
+        open: Boolean,
         onNewValue: () -> Unit,
         onReadValue: (SecretValueModel) -> Unit,
         onUp: () -> Unit,
-        onDelete: () -> Unit
+        onDelete: () -> Unit,
+        onUnlockWithPin: () -> Unit,
+        onUnlockWithBiometric: () -> Unit
     ) {
         Scaffold(
             modifier = Modifier.background(MaterialTheme.colorScheme.background),
-            topBar = { AppBar(title, onUp) }
+            topBar = { AppBar(title, onUp, onDelete) }
         ) { padding ->
             LazyColumn(
                 modifier = Modifier
@@ -125,19 +149,23 @@ object VaultDetailsView {
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                item {
+                    LockedStateBar(open)
+                }
+                item {
+                    LocksBar(
+                        open = open,
+                        pinLockEnabled = true,
+                        biometricLockEnabled = false,
+                        onUnlockWithPin = onUnlockWithPin,
+                        onUnlockWithBiometric = onUnlockWithBiometric
+                    )
+                }
+                item {
+                    Text(modifier = Modifier.padding(top = 16.dp), text = "Secret values", style = MaterialTheme.typography.headlineSmall)
+                }
                 items(values) { value ->
-                    Row(
-                        modifier = Modifier.padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(text = value.id)
-                            Text(text = value.description)
-                        }
-                        TextButton(onClick = { onReadValue(value) }) {
-                            Text(text = "Read value")
-                        }
-                    }
+                    SecretValueCell(value, open = open) { onReadValue(value) }
                     HorizontalDivider()
                 }
                 item {
@@ -149,21 +177,89 @@ object VaultDetailsView {
                         Text(text = "+ New secure value", style = MaterialTheme.typography.labelMedium)
                     }
                 }
-                item {
-                    Button(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        onClick = onDelete
-                    ) {
-                        Text(text = "DELETE")
-                    }
-                }
             }
         }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun LockedStateBar(open: Boolean) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(modifier = Modifier.weight(1f))
+            val imageVector = if (open) Icons.Filled.Lock else Icons.Filled.Lock
+            val text = if (open) "Open" else "Locked"
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(text)
+                Icon(imageVector, contentDescription = text)
+            }
+        }
+    }
+
+    @Composable
+    fun LocksBar(
+        open: Boolean,
+        pinLockEnabled: Boolean,
+        biometricLockEnabled: Boolean,
+        onUnlockWithPin: () -> Unit = {},
+        onUnlockWithBiometric: () -> Unit = {}
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            LockView(
+                modifier = Modifier.weight(1f),
+                title = "Pin lock",
+                enabled = pinLockEnabled,
+                onEnable = {},
+                onDisable = {},
+                open = open,
+                onUnlock = onUnlockWithPin,
+                color = Color.Red
+            )
+            LockView(
+                modifier = Modifier.weight(1f),
+                title = "Biometric lock",
+                enabled = biometricLockEnabled,
+                onEnable = {},
+                onDisable = {},
+                open = open,
+                onUnlock = onUnlockWithBiometric,
+                color = Color.Green
+            )
+        }
+    }
+
+    @Composable
+    fun SecretValueCell(
+        value: SecretValueModel,
+        open: Boolean,
+        onReadValue: () -> Unit
+    ) {
+        Row(
+            modifier = Modifier.padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(text = value.id, style = MaterialTheme.typography.titleMedium)
+                Text(text = value.description, style = MaterialTheme.typography.bodyMedium)
+            }
+            if (open) {
+                TextButton(onClick = onReadValue) {
+                    Text(text = "Read value")
+                }
+            } else {
+                Text(text = "*****", style = MaterialTheme.typography.titleMedium)
+            }
+        }
+    }
+
     @Composable
     fun NewValueDialog(
         onDismissRequest: () -> Unit,
@@ -210,14 +306,26 @@ object VaultDetailsView {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun AppBar(title: String, onUp: () -> Unit) {
+    fun AppBar(
+        title: String,
+        onUp: () -> Unit,
+        onDelete: () -> Unit
+    ) {
         LargeTopAppBar(
             navigationIcon = {
                 IconButton(onClick = onUp) {
-                    Icon(painterResource(id = R.drawable.ic_back_24), contentDescription = "back")
+                    Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "back")
                 }
             },
-            title = { Text(text = title) }
+            title = { Text(text = title) },
+            actions = {
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = "Delete vault"
+                    )
+                }
+            }
         )
     }
 
@@ -251,10 +359,13 @@ private fun Preview() {
                 SecretValueModel("id2", "desc2", byteArrayOf()),
                 SecretValueModel("id3", "desc3", byteArrayOf()),
             ),
+            open = false,
             onNewValue = { showNewValueDialog.value = true },
             onReadValue = { secretValue.value = it.id },
             onUp = {},
-            onDelete = {}
+            onDelete = {},
+            onUnlockWithPin = {},
+            onUnlockWithBiometric = {}
         )
     }
 }
