@@ -58,14 +58,28 @@ class VaultDetailsViewModel(
 
     val readValues = MutableStateFlow(mapOf<String, String>())
 
-    fun unlockWithPinCode() {
-        openVault = vault.value.open("supersafepassword")
+    /// PIN LOCK =======================
+
+    fun enablePinLock() {
+        val openVault = openVault ?: error("Vault is not open")
+        openVault.registerPinLock(vault.value.id, "supersafepassword")
+        manager.save(openVault.vault)
+        vault.value = openVault.vault
+    }
+
+    fun disablePinLock() {
+        val openVault = openVault ?: error("Vault is not open")
+        openVault.removePinLock()
+        manager.save(openVault.vault)
+        vault.value = openVault.vault
+    }
+
+    fun unlockWithPinCode(pin: String = "supersafepassword") {
+        openVault = vault.value.open(pin)
         isOpen.value = true
     }
 
-    fun delete() {
-        manager.deleteVault(vault.value)
-    }
+    /// VALUES =======================
 
     fun createSecretValue(key: String, value: String) {
         vault.value = manager.newSecretValue(vault.value, key, value)
@@ -77,6 +91,12 @@ class VaultDetailsViewModel(
         return vault.readValue(value).also {
             readValues.value += (value.id to it)
         }
+    }
+
+    /// MISC =======================
+
+    fun delete() {
+        manager.deleteVault(vault.value)
     }
 
 }
@@ -131,6 +151,8 @@ object VaultDetailsView {
                 onUp()
             },
             onUnlockWithPin = viewModel::unlockWithPinCode,
+            onEnablePinLock = viewModel::enablePinLock,
+            onDisablePinLock = viewModel::disablePinLock,
             onUnlockWithBiometric = { TODO() }
         )
     }
@@ -145,6 +167,8 @@ object VaultDetailsView {
         onUp: () -> Unit,
         onDelete: () -> Unit,
         onUnlockWithPin: () -> Unit,
+        onEnablePinLock: () -> Unit,
+        onDisablePinLock: () -> Unit,
         onUnlockWithBiometric: () -> Unit
     ) {
         Scaffold(
@@ -166,6 +190,8 @@ object VaultDetailsView {
                         pinLockEnabled = true,
                         biometricLockEnabled = false,
                         onUnlockWithPin = onUnlockWithPin,
+                        onEnablePinLock = onEnablePinLock,
+                        onDisablePinLock = onDisablePinLock,
                         onUnlockWithBiometric = onUnlockWithBiometric
                     )
                 }
@@ -215,8 +241,10 @@ object VaultDetailsView {
         open: Boolean,
         pinLockEnabled: Boolean,
         biometricLockEnabled: Boolean,
-        onUnlockWithPin: () -> Unit = {},
-        onUnlockWithBiometric: () -> Unit = {}
+        onUnlockWithPin: () -> Unit,
+        onEnablePinLock: () -> Unit,
+        onDisablePinLock: () -> Unit,
+        onUnlockWithBiometric: () -> Unit
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -227,8 +255,8 @@ object VaultDetailsView {
                 modifier = Modifier.weight(1f),
                 title = "Pin lock",
                 enabled = pinLockEnabled,
-                onEnable = {},
-                onDisable = {},
+                onEnable = onEnablePinLock,
+                onDisable = onDisablePinLock,
                 open = open,
                 onUnlock = onUnlockWithPin,
                 color = Color.Red
@@ -370,6 +398,8 @@ private fun Preview() {
             onUp = {},
             onDelete = {},
             onUnlockWithPin = {},
+            onEnablePinLock = {},
+            onDisablePinLock = {},
             onUnlockWithBiometric = {}
         )
     }

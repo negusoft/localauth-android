@@ -164,9 +164,9 @@ object VaultListView {
                     horizontalArrangement = Arrangement.spacedBy(4.dp, alignment = Alignment.End)
                 ) {
                     if (pinLockEnabled)
-                        LockTypeIndicator(color = Color.Blue.copy(alpha = 0.2f), text = "biometric", icon = rememberVectorPainter(Icons.AutoMirrored.Outlined.ArrowBack))
+                        LockTypeIndicator(color = Color.Red.copy(alpha = 0.2f), text = "pin code", icon = rememberVectorPainter(Icons.AutoMirrored.Outlined.ArrowBack))
                     if (biometricLockEnabled)
-                        LockTypeIndicator(color = Color.Green.copy(alpha = 0.2f), text = "pin code", icon = rememberVectorPainter(Icons.AutoMirrored.Outlined.ArrowBack))
+                        LockTypeIndicator(color = Color.Green.copy(alpha = 0.2f), text = "biometric", icon = rememberVectorPainter(Icons.AutoMirrored.Outlined.ArrowBack))
                     if (!pinLockEnabled && !biometricLockEnabled)
                         LockTypeIndicator(color = Color.Red.copy(alpha = 0.2f), text = "no locks available", icon = rememberVectorPainter(Icons.Outlined.Warning))
 
