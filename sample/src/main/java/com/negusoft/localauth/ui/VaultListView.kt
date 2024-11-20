@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Card
@@ -163,9 +164,9 @@ object VaultListView {
                     horizontalArrangement = Arrangement.spacedBy(4.dp, alignment = Alignment.End)
                 ) {
                     if (pinLockEnabled)
-                        LockTypeIndicator(color = Color.Blue.copy(alpha = 0.2f), text = "biometric", icon = painterResource(id = R.drawable.ic_back_24))
+                        LockTypeIndicator(color = Color.Blue.copy(alpha = 0.2f), text = "biometric", icon = rememberVectorPainter(Icons.AutoMirrored.Outlined.ArrowBack))
                     if (biometricLockEnabled)
-                        LockTypeIndicator(color = Color.Green.copy(alpha = 0.2f), text = "pin code", icon = painterResource(id = R.drawable.ic_back_24))
+                        LockTypeIndicator(color = Color.Green.copy(alpha = 0.2f), text = "pin code", icon = rememberVectorPainter(Icons.AutoMirrored.Outlined.ArrowBack))
                     if (!pinLockEnabled && !biometricLockEnabled)
                         LockTypeIndicator(color = Color.Red.copy(alpha = 0.2f), text = "no locks available", icon = rememberVectorPainter(Icons.Outlined.Warning))
 

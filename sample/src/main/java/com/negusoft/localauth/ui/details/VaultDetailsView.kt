@@ -1,6 +1,5 @@
 package com.negusoft.localauth.ui.details
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,28 +9,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -61,6 +56,8 @@ class VaultDetailsViewModel(
         manager.getVaultById(vaultId) ?: error("No vault for id $vaultId")
     )
 
+    val readValues = MutableStateFlow(mapOf<String, String>())
+
     fun unlockWithPinCode() {
         openVault = vault.value.open("supersafepassword")
         isOpen.value = true
@@ -74,14 +71,23 @@ class VaultDetailsViewModel(
         vault.value = manager.newSecretValue(vault.value, key, value)
     }
 
-    fun readSecretValue(value: SecretValueModel, pin: String): String {
-        val vault = vault.value
-        return vault.readValueWithPin(value, pin)
+    /** Read secret value using the open vault */
+    fun readSecretValue(value: SecretValueModel): String {
+        val vault = openVault ?: error("Vault is not open")
+        return vault.readValue(value).also {
+            readValues.value += (value.id to it)
+        }
     }
 
 }
 
 object VaultDetailsView {
+
+    class SecretItem(
+        val id: String,
+        val description: String,
+        val value: String?
+    )
 
     @Composable
     operator fun invoke(
@@ -89,6 +95,16 @@ object VaultDetailsView {
         onUp: () -> Unit
     ) {
         val vault = viewModel.vault.collectAsState()
+        val readValues = viewModel.readValues.collectAsState()
+        val secretItems = remember {
+            derivedStateOf {
+                vault.value.secretValues.map {
+                    val value = readValues.value[it.id]
+                    SecretItem(it.id, it.description, value)
+                }
+            }
+        }
+
         val showNewValueDialog = remember { mutableStateOf(false) }
         if (showNewValueDialog.value) {
             NewValueDialog(
@@ -100,22 +116,14 @@ object VaultDetailsView {
             )
         }
 
-        val valueToShow = remember { mutableStateOf<String?>(null) }
-        valueToShow.value?.let { value ->
-            AlertDialog(
-                onDismissRequest = { valueToShow.value = null },
-                confirmButton = { },
-                text = { Text(text = value) }
-            )
-        }
-
         Content(
             title = viewModel.title,
-            values = vault.value.secretValues,
+            secrets = secretItems.value,
             open = viewModel.isOpen.collectAsState().value,
             onNewValue = { showNewValueDialog.value = true },
-            onReadValue = {
-                valueToShow.value = viewModel.readSecretValue(it, "supersafepassword")
+            onReadValue = { item ->
+                val secret = vault.value.secretValues.find { item.id == it.id }!!
+                viewModel.readSecretValue(secret)
             },
             onUp = onUp,
             onDelete = {
@@ -130,10 +138,10 @@ object VaultDetailsView {
     @Composable
     fun Content(
         title: String,
-        values: List<SecretValueModel>,
+        secrets: List<SecretItem>,
         open: Boolean,
         onNewValue: () -> Unit,
-        onReadValue: (SecretValueModel) -> Unit,
+        onReadValue: (SecretItem) -> Unit,
         onUp: () -> Unit,
         onDelete: () -> Unit,
         onUnlockWithPin: () -> Unit,
@@ -164,8 +172,10 @@ object VaultDetailsView {
                 item {
                     Text(modifier = Modifier.padding(top = 16.dp), text = "Secret values", style = MaterialTheme.typography.headlineSmall)
                 }
-                items(values) { value ->
-                    SecretValueCell(value, open = open) { onReadValue(value) }
+                items(secrets) { item ->
+                    SecretItemView(item, open) {
+                        onReadValue(item)
+                    }
                     HorizontalDivider()
                 }
                 item {
@@ -237,8 +247,8 @@ object VaultDetailsView {
     }
 
     @Composable
-    fun SecretValueCell(
-        value: SecretValueModel,
+    fun SecretItemView(
+        item: SecretItem,
         open: Boolean,
         onReadValue: () -> Unit
     ) {
@@ -247,15 +257,15 @@ object VaultDetailsView {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Text(text = value.id, style = MaterialTheme.typography.titleMedium)
-                Text(text = value.description, style = MaterialTheme.typography.bodyMedium)
+                Text(text = item.id, style = MaterialTheme.typography.titleMedium)
+                Text(text = item.description, style = MaterialTheme.typography.bodyMedium)
             }
-            if (open) {
-                TextButton(onClick = onReadValue) {
+            when {
+                !open -> Text(text = "*****", style = MaterialTheme.typography.titleMedium)
+                item.value != null -> Text(text = item.value, style = MaterialTheme.typography.titleMedium)
+                else -> TextButton(onClick = onReadValue) {
                     Text(text = "Read value")
                 }
-            } else {
-                Text(text = "*****", style = MaterialTheme.typography.titleMedium)
             }
         }
     }
@@ -297,11 +307,6 @@ object VaultDetailsView {
                 TextButton(onClick = onDismissRequest) { Text("Dismiss") }
             }
         )
-//        BasicAlertDialog(
-//            onDismissRequest = onDismissRequest
-//        ) {
-//            Text(text = "New dialog")
-//        }
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -354,10 +359,10 @@ private fun Preview() {
 
         VaultDetailsView.Content(
             title = "TITLE",
-            values = listOf(
-                SecretValueModel("id1", "desc1", byteArrayOf()),
-                SecretValueModel("id2", "desc2", byteArrayOf()),
-                SecretValueModel("id3", "desc3", byteArrayOf()),
+            secrets = listOf(
+                VaultDetailsView.SecretItem("id1", "desc1", null),
+                VaultDetailsView.SecretItem("id2", "desc2", "value3"),
+                VaultDetailsView.SecretItem("id3", "desc3", null),
             ),
             open = false,
             onNewValue = { showNewValueDialog.value = true },
