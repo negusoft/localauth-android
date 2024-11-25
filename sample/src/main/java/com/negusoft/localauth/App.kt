@@ -3,7 +3,7 @@ package com.negusoft.localauth
 import android.app.Application
 import com.negusoft.localauth.core.VaultManager
 import com.negusoft.localauth.ui.details.VaultDetailsViewModel
-import com.negusoft.localauth.ui.VaultListViewModel
+import com.negusoft.localauth.ui.vaultlist.VaultListViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.context.GlobalContext.startKoin
@@ -25,7 +25,7 @@ class App: Application() {
     val appModule = module {
         single { VaultManager(get()) }
         viewModel { VaultListViewModel(get()) }
-        viewModel { params -> VaultDetailsViewModel(params.get(), get()) }
+        viewModel { params -> VaultDetailsViewModel(params.getOrNull(), get()) }
 //        singleOf(::UserRepositoryImpl) { bind<UserRepository>() }
 //        factoryOf(::UserStateHolder)
     }

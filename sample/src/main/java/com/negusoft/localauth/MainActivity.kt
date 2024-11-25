@@ -6,7 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import com.negusoft.localauth.ui.MainNavigation
-import com.negusoft.localauth.ui.VaultListViewModel
+import com.negusoft.localauth.ui.vaultlist.VaultListViewModel
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
 import org.koin.androidx.compose.KoinAndroidContext
 import org.koin.core.KoinApplication

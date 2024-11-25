@@ -11,6 +11,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.util.UUID
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 class VaultManager(
     context: Context
@@ -43,6 +46,7 @@ class VaultManager(
     /**
      * Create a new vault with a PIN lock and save it to storage.
      */
+    @Deprecated("Use the createVault function instead")
     fun createVault(name: String, password: String): VaultModel {
         val lockId = "$name.pin"
         lateinit var pinLock: PinLock
@@ -52,6 +56,16 @@ class VaultManager(
         return VaultModel.vault(name, name, vault, pinLock).also {
             save(it)
         }
+    }
+
+    /**
+     * Create a new vault.
+     * Don't forget to add a lock and save it.
+     */
+    fun createVault(): OpenVaultModel {
+        val openVault = LocalVault.create()
+        val vaultModel =  VaultModel.vault(randomId(), "New vault", openVault.vault)
+        return OpenVaultModel(vaultModel, openVault)
     }
 
     fun deleteVault(vault: VaultModel) {
@@ -83,6 +97,9 @@ class VaultManager(
         }
         _vaults.value = newList
     }
+
+    @OptIn(ExperimentalUuidApi::class)
+    private fun randomId() = Uuid.random().toString()
 }
 
 @Serializable
@@ -130,6 +147,8 @@ class VaultModel private constructor(
         pinLockEncoded: ByteArray? = this.pinLockEncoded,
         values: List<SecretValueModel> = this.secretValues
     ) = VaultModel(id, name, encoded, pinLockEncoded, values, _vault)
+
+    val hasAnyVaults: Boolean get() = pinLockEnabled// || biometricLockEnabled
 }
 
 class OpenVaultModel(

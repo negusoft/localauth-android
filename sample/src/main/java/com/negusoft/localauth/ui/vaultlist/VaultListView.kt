@@ -1,10 +1,9 @@
-package com.negusoft.localauth.ui
+package com.negusoft.localauth.ui.vaultlist
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -20,18 +19,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Card
-import androidx.compose.material3.ChipColors
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,16 +36,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
-import com.negusoft.localauth.R
 import com.negusoft.localauth.core.VaultManager
 import com.negusoft.localauth.core.VaultModel
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
 import com.negusoft.localauth.vault.LocalVault
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -64,12 +56,6 @@ class VaultListViewModel(
         manager.initialize()
     }
 
-    @OptIn(ExperimentalUuidApi::class)
-    fun createVault() {
-        manager.createVault(Uuid.random().toString(), "supersafepassword")
-    }
-//    fun getVaults() = manager.getVaults()
-
     fun deleteVault(vault: VaultModel) {
         manager.deleteVault(vault)
     }
@@ -80,13 +66,15 @@ object VaultListView {
     @Composable
     operator fun invoke(
         viewModel: VaultListViewModel,
-        onSelected: (VaultModel) -> Unit
+        onSelected: (VaultModel) -> Unit,
+        onCreate: () -> Unit
     ) {
         val vaults = viewModel.vaults.collectAsState()
+
         Content(
             vaults = vaults.value ?: listOf(),
             selectVault = onSelected,
-            createVault = viewModel::createVault,
+            createVault = onCreate,
             deleteVault = viewModel::deleteVault
         )
     }

@@ -1,5 +1,6 @@
 package com.negusoft.localauth.ui.details
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,8 +14,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,74 +35,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import com.negusoft.localauth.core.OpenVaultModel
-import com.negusoft.localauth.core.SecretValueModel
-import com.negusoft.localauth.core.VaultManager
 import com.negusoft.localauth.ui.details.VaultDetailsView.NewValueDialog
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
-import kotlinx.coroutines.flow.MutableStateFlow
-
-class VaultDetailsViewModel(
-    vaultId: String,
-    private val manager: VaultManager
-): ViewModel() {
-
-    val title: String get() = vault.value.id
-
-    val isOpen = MutableStateFlow(false)
-    private var openVault: OpenVaultModel? = null
-
-    val vault = MutableStateFlow(
-        manager.getVaultById(vaultId) ?: error("No vault for id $vaultId")
-    )
-
-    val readValues = MutableStateFlow(mapOf<String, String>())
-
-    /// PIN LOCK =======================
-
-    fun enablePinLock() {
-        val openVault = openVault ?: error("Vault is not open")
-        openVault.registerPinLock(vault.value.id, "supersafepassword")
-        manager.save(openVault.vault)
-        vault.value = openVault.vault
-    }
-
-    fun disablePinLock() {
-        val openVault = openVault ?: error("Vault is not open")
-        openVault.removePinLock()
-        manager.save(openVault.vault)
-        vault.value = openVault.vault
-    }
-
-    fun unlockWithPinCode(pin: String = "supersafepassword") {
-        openVault = vault.value.open(pin)
-        isOpen.value = true
-    }
-
-    /// VALUES =======================
-
-    fun createSecretValue(key: String, value: String) {
-        vault.value = manager.newSecretValue(vault.value, key, value)
-    }
-
-    /** Read secret value using the open vault */
-    fun readSecretValue(value: SecretValueModel): String {
-        val vault = openVault ?: error("Vault is not open")
-        return vault.readValue(value).also {
-            readValues.value += (value.id to it)
-        }
-    }
-
-    /// MISC =======================
-
-    fun delete() {
-        manager.deleteVault(vault.value)
-    }
-
-}
 
 object VaultDetailsView {
 
@@ -125,6 +65,24 @@ object VaultDetailsView {
             }
         }
 
+        val pinInput = viewModel.pinInput.collectAsState()
+        pinInput.value?.let { input ->
+            PinInputDialog(
+                title = when(input.type) {
+                    PinInputModel.Type.REGISTER -> "Register pin code"
+                    PinInputModel.Type.UNLOCK -> "Unlock with pin code"
+                },
+                confirmText = when(input.type) {
+                    PinInputModel.Type.REGISTER -> "Register"
+                    PinInputModel.Type.UNLOCK -> "Unlock"
+                },
+                input = input.input.collectAsState().value,
+                onInputChange = { input.input.value = it },
+                onInput = input::confirm,
+                onDismiss = input::cancel
+            )
+        }
+
         val showNewValueDialog = remember { mutableStateOf(false) }
         if (showNewValueDialog.value) {
             NewValueDialog(
@@ -136,16 +94,38 @@ object VaultDetailsView {
             )
         }
 
+        viewModel.errorNoLocks.collectAsState().value?.let { error ->
+            AlertDialog(
+                title = { Text(text = "No locks registered") },
+                text = { Text(text = "A vault with no locks can't be opened, rendering it useless.") },
+                confirmButton = { TextButton(onClick = { error.dismiss() }) { Text(text = "Got it")} },
+                onDismissRequest = { error.dismiss() },
+            )
+        }
+
+        viewModel.errorWrongPin.collectAsState().value?.let { error ->
+            AlertDialog(
+                title = { Text(text = "Wrong password") },
+                text = { Text(text = "Please enter the correct password.") },
+                confirmButton = { TextButton(onClick = { error.retry() }) { Text(text = "Try again")} },
+                onDismissRequest = { error.dismiss() },
+            )
+        }
+
         Content(
             title = viewModel.title,
             secrets = secretItems.value,
             open = viewModel.isOpen.collectAsState().value,
+            pinLockEnabled = vault.value.pinLockEnabled,
+            biometricLockEnabled = false,
+            saveRequired = viewModel.saveRequired.collectAsState().value,
             onNewValue = { showNewValueDialog.value = true },
             onReadValue = { item ->
                 val secret = vault.value.secretValues.find { item.id == it.id }!!
                 viewModel.readSecretValue(secret)
             },
             onUp = onUp,
+            onSave = viewModel::save,
             onDelete = {
                 viewModel.delete()
                 onUp()
@@ -162,9 +142,13 @@ object VaultDetailsView {
         title: String,
         secrets: List<SecretItem>,
         open: Boolean,
+        pinLockEnabled: Boolean,
+        biometricLockEnabled: Boolean,
+        saveRequired: Boolean,
         onNewValue: () -> Unit,
         onReadValue: (SecretItem) -> Unit,
         onUp: () -> Unit,
+        onSave: () -> Unit,
         onDelete: () -> Unit,
         onUnlockWithPin: () -> Unit,
         onEnablePinLock: () -> Unit,
@@ -173,7 +157,20 @@ object VaultDetailsView {
     ) {
         Scaffold(
             modifier = Modifier.background(MaterialTheme.colorScheme.background),
-            topBar = { AppBar(title, onUp, onDelete) }
+            topBar = { AppBar(title, onUp, onDelete) },
+            floatingActionButton = {
+                FloatingActionButton(onClick = onSave) {
+                    AnimatedContent(saveRequired) { saveRequired ->
+                        if (saveRequired) {
+                            Row(modifier = Modifier.padding(16.dp)) {
+                                Text(text = "Save")
+                            }
+                        } else {
+                            Icon(painter = rememberVectorPainter(Icons.Outlined.Check), contentDescription = "Saved")
+                        }
+                    }
+                }
+            }
         ) { padding ->
             LazyColumn(
                 modifier = Modifier
@@ -187,8 +184,8 @@ object VaultDetailsView {
                 item {
                     LocksBar(
                         open = open,
-                        pinLockEnabled = true,
-                        biometricLockEnabled = false,
+                        pinLockEnabled = pinLockEnabled,
+                        biometricLockEnabled = biometricLockEnabled,
                         onUnlockWithPin = onUnlockWithPin,
                         onEnablePinLock = onEnablePinLock,
                         onDisablePinLock = onDisablePinLock,
@@ -215,6 +212,39 @@ object VaultDetailsView {
                 }
             }
         }
+    }
+
+    @Composable
+    fun PinInputDialog(
+        title: String,
+        confirmText: String,
+        input: String,
+        onInputChange: (String) -> Unit,
+        onInput: () -> Unit,
+        onDismiss: () -> Unit
+    ) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(text = title) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = onInputChange,
+                        label = { Text("Pin code") }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = onInput,
+                    content = { Text(confirmText) }
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        )
     }
 
     @Composable
@@ -298,6 +328,7 @@ object VaultDetailsView {
         }
     }
 
+    @Deprecated("Don't use")
     @Composable
     fun NewValueDialog(
         onDismissRequest: () -> Unit,
@@ -385,6 +416,8 @@ private fun Preview() {
             )
         }
 
+        val saveRequired = remember { mutableStateOf(false) }
+
         VaultDetailsView.Content(
             title = "TITLE",
             secrets = listOf(
@@ -392,10 +425,14 @@ private fun Preview() {
                 VaultDetailsView.SecretItem("id2", "desc2", "value3"),
                 VaultDetailsView.SecretItem("id3", "desc3", null),
             ),
-            open = false,
+            open = true,
+            pinLockEnabled = false,
+            biometricLockEnabled = false,
+            saveRequired = saveRequired.value,
             onNewValue = { showNewValueDialog.value = true },
             onReadValue = { secretValue.value = it.id },
             onUp = {},
+            onSave = { saveRequired.value = !saveRequired.value },
             onDelete = {},
             onUnlockWithPin = {},
             onEnablePinLock = {},
