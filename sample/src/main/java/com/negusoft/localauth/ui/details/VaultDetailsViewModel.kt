@@ -19,8 +19,6 @@ class VaultDetailsViewModel(
     private val manager: VaultManager
 ): ViewModel() {
 
-    val title: String get() = vault.value.id
-
     val isOpen = MutableStateFlow(false)
     private var openVault: OpenVaultModel? = null
 
@@ -30,6 +28,7 @@ class VaultDetailsViewModel(
 
     val saveRequired = MutableStateFlow(false)
     val pinInput = MutableStateFlow<PinInputModel?>(null)
+    val titleInput = MutableStateFlow<TitleInputModel?>(null)
 
     val errorNoLocks = MutableStateFlow<ErrorModel?>(null)
     val errorWrongPin = MutableStateFlow<RetryErrorModel?>(null)
@@ -117,6 +116,22 @@ class VaultDetailsViewModel(
 
     /// MISC =======================
 
+    fun changeVaultName() {
+        titleInput.value = TitleInputModel(
+            initialValue = vault.value.name,
+            onInput = { value ->
+                doSetVaultName(value)
+                titleInput.value = null
+            },
+            onCancel = { titleInput.value = null }
+        )
+    }
+
+    private fun doSetVaultName(name: String) {
+        vault.value = vault.value.modify(name = name)
+        saveRequired.value = true
+    }
+
     fun save() {
         if (!vault.value.hasAnyVaults) {
             errorNoLocks.value = ErrorModel { errorNoLocks.value = null }
@@ -139,6 +154,16 @@ class PinInputModel(
 ) {
     enum class Type { REGISTER, UNLOCK }
     val input = MutableStateFlow("")
+    fun confirm() { onInput(input.value) }
+    fun cancel() { onCancel() }
+}
+
+class TitleInputModel(
+    initialValue: String,
+    private val onInput: (String) -> Unit,
+    private val onCancel: () -> Unit
+) {
+    val input = MutableStateFlow(initialValue)
     fun confirm() { onInput(input.value) }
     fun cancel() { onCancel() }
 }

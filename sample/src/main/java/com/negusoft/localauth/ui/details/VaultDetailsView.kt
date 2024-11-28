@@ -1,18 +1,22 @@
 package com.negusoft.localauth.ui.details
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.AlertDialog
@@ -38,7 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.negusoft.localauth.ui.details.VaultDetailsView.NewValueDialog
+import com.negusoft.localauth.ui.common.InputDialog
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
 
 object VaultDetailsView {
@@ -65,6 +69,27 @@ object VaultDetailsView {
             }
         }
 
+        val saveRequired = viewModel.saveRequired.collectAsState()
+        val showDiscardChangesDialog = remember { mutableStateOf(false) }
+        BackHandler(saveRequired.value) {
+            showDiscardChangesDialog.value = true
+        }
+        if (showDiscardChangesDialog.value) {
+            DiscardChangesConfirmationDialog(
+                onDismiss = { showDiscardChangesDialog.value = false },
+                onConfirm = {
+                    onUp()
+                    showDiscardChangesDialog.value = false
+                }
+            )
+        }
+        fun onUpWithConfirmation() {
+            if (saveRequired.value)
+                showDiscardChangesDialog.value = true
+            else
+                onUp()
+        }
+
         val pinInput = viewModel.pinInput.collectAsState()
         pinInput.value?.let { input ->
             PinInputDialog(
@@ -81,6 +106,11 @@ object VaultDetailsView {
                 onInput = input::confirm,
                 onDismiss = input::cancel
             )
+        }
+
+        val titleInput = viewModel.titleInput.collectAsState()
+        titleInput.value?.let { input ->
+            TitleInputDialog(input)
         }
 
         val showNewValueDialog = remember { mutableStateOf(false) }
@@ -113,7 +143,8 @@ object VaultDetailsView {
         }
 
         Content(
-            title = viewModel.title,
+            title = vault.value.name,
+            subtitle = vault.value.id,
             secrets = secretItems.value,
             open = viewModel.isOpen.collectAsState().value,
             pinLockEnabled = vault.value.pinLockEnabled,
@@ -124,12 +155,13 @@ object VaultDetailsView {
                 val secret = vault.value.secretValues.find { item.id == it.id }!!
                 viewModel.readSecretValue(secret)
             },
-            onUp = onUp,
+            onUp = ::onUpWithConfirmation,
             onSave = viewModel::save,
             onDelete = {
                 viewModel.delete()
                 onUp()
             },
+            onTitleSelected = viewModel::changeVaultName,
             onUnlockWithPin = viewModel::unlockWithPinCode,
             onEnablePinLock = viewModel::enablePinLock,
             onDisablePinLock = viewModel::disablePinLock,
@@ -140,6 +172,7 @@ object VaultDetailsView {
     @Composable
     fun Content(
         title: String,
+        subtitle: String,
         secrets: List<SecretItem>,
         open: Boolean,
         pinLockEnabled: Boolean,
@@ -150,6 +183,7 @@ object VaultDetailsView {
         onUp: () -> Unit,
         onSave: () -> Unit,
         onDelete: () -> Unit,
+        onTitleSelected: () -> Unit,
         onUnlockWithPin: () -> Unit,
         onEnablePinLock: () -> Unit,
         onDisablePinLock: () -> Unit,
@@ -157,7 +191,7 @@ object VaultDetailsView {
     ) {
         Scaffold(
             modifier = Modifier.background(MaterialTheme.colorScheme.background),
-            topBar = { AppBar(title, onUp, onDelete) },
+            topBar = { AppBar(title, subtitle, onUp, onDelete, onTitleSelected) },
             floatingActionButton = {
                 FloatingActionButton(onClick = onSave) {
                     AnimatedContent(saveRequired) { saveRequired ->
@@ -215,6 +249,29 @@ object VaultDetailsView {
     }
 
     @Composable
+    fun DiscardChangesConfirmationDialog(
+        onDismiss: () -> Unit,
+        onConfirm: () -> Unit
+    ) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(text = "Discard changes?") },
+            text = {
+                Text(text = "Changes since the last save will be lost.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = onConfirm,
+                    content = { Text("Discard changes") }
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        )
+    }
+
+    @Composable
     fun PinInputDialog(
         title: String,
         confirmText: String,
@@ -244,6 +301,20 @@ object VaultDetailsView {
             dismissButton = {
                 TextButton(onClick = onDismiss) { Text("Cancel") }
             }
+        )
+    }
+
+    @Composable
+    fun TitleInputDialog(input: TitleInputModel) {
+        InputDialog(
+            title = "Edit title",
+            inputLabel = "title",
+            confirmText = "Confirm",
+            dismissText = "Dismiss",
+            input = input.input.collectAsState().value,
+            onInputChange = { input.input.value = it },
+            onConfirm = input::confirm,
+            onDismiss = input::cancel
         )
     }
 
@@ -328,52 +399,14 @@ object VaultDetailsView {
         }
     }
 
-    @Deprecated("Don't use")
-    @Composable
-    fun NewValueDialog(
-        onDismissRequest: () -> Unit,
-        createValue: (key: String, value: String) -> Unit
-    ) {
-        val keyField = remember { mutableStateOf("") }
-        val valueField = remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = onDismissRequest,
-            title = { Text(text = "New secret value") },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = keyField.value,
-                        onValueChange = { keyField.value = it },
-                        label = { Text("Key") }
-                    )
-                    OutlinedTextField(
-                        value = valueField.value,
-                        onValueChange = { valueField.value = it },
-                        label = { Text("Value") }
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        createValue(keyField.value, valueField.value)
-                        onDismissRequest()
-                    },
-                    content = { Text("Confirm") }
-                )
-            },
-            dismissButton = {
-                TextButton(onClick = onDismissRequest) { Text("Dismiss") }
-            }
-        )
-    }
-
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun AppBar(
         title: String,
+        subtitle: String,
         onUp: () -> Unit,
-        onDelete: () -> Unit
+        onDelete: () -> Unit,
+        onTitleSelected: () -> Unit
     ) {
         LargeTopAppBar(
             navigationIcon = {
@@ -381,7 +414,33 @@ object VaultDetailsView {
                     Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "back")
                 }
             },
-            title = { Text(text = title) },
+            title = {
+                Column(
+                    modifier = Modifier.clickable { onTitleSelected() }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            modifier = Modifier.weight(1f, fill = false),
+                            text = title,
+                            maxLines = 1,
+                        )
+                        Icon(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .padding(4.dp),
+                            imageVector = Icons.Filled.Edit,
+                            contentDescription = "Edit title",
+                        )
+                    }
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            },
             actions = {
                 IconButton(onClick = onDelete) {
                     Icon(
@@ -420,6 +479,7 @@ private fun Preview() {
 
         VaultDetailsView.Content(
             title = "TITLE",
+            subtitle = "asdf-asdf-asdf-asdf",
             secrets = listOf(
                 VaultDetailsView.SecretItem("id1", "desc1", null),
                 VaultDetailsView.SecretItem("id2", "desc2", "value3"),
@@ -434,6 +494,7 @@ private fun Preview() {
             onUp = {},
             onSave = { saveRequired.value = !saveRequired.value },
             onDelete = {},
+            onTitleSelected = {},
             onUnlockWithPin = {},
             onEnablePinLock = {},
             onDisablePinLock = {},
