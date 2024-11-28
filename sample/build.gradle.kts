@@ -1,6 +1,11 @@
+import com.android.build.gradle.internal.scope.ProjectInfo.Companion.getBaseName
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kotlin.ksp)
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
@@ -50,6 +55,7 @@ android {
 }
 
 dependencies {
+
     implementation(project(":localauth"))
 
     implementation(libs.androidx.core.ktx)
@@ -60,6 +66,15 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    runtimeOnly(libs.androidx.material.icons.extended)
+//    implementation("androidx.compose.material:material-icons-extended:1.7.5")
+    implementation(libs.navigation.compose)
+
+    // Dependency Injection
+    implementation(libs.koin.androidx.compose.navigation)
+
+    // Serialization
+    implementation(libs.kotlin.serialization)
 
     testImplementation(libs.junit)
 

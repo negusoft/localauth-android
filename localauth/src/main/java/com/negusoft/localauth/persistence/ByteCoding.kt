@@ -98,6 +98,7 @@ class ByteDecoder(val bytes: ByteArray, startIndex: Int) {
     @Throws(ByteCodingException::class)
     fun readProperty(): ByteArray? {
         val size = readSize()
+        if (size == 0) return null
         return readBytes(size)
     }
 

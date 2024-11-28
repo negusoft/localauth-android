@@ -4,44 +4,53 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.activity.viewModels
+import com.negusoft.localauth.ui.MainNavigation
+import com.negusoft.localauth.ui.vaultlist.VaultListViewModel
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
+import org.koin.androidx.compose.KoinAndroidContext
+import org.koin.core.KoinApplication
+import org.koin.dsl.KoinAppDeclaration
 
 class MainActivity : ComponentActivity() {
+
+    val viewModel: VaultListViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            LocalAuthTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+//            KoinApplication(application = koinConfig()) {
+            KoinAndroidContext {
+                LocalAuthTheme {
+//                VaultListView(viewModel)
+                    MainNavigation()
                 }
             }
+//            KoinApplication(::koinConfiguration) {
+//            }
         }
     }
-}
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    LocalAuthTheme {
-        Greeting("Android")
+
+    fun koinConfig(): KoinAppDeclaration = {
+        modules()
     }
+    fun KoinApplication.koinConfig2() {
+
+    }
+//    fun KoinApplication.koinConfiguration()  {
+//        // your configuration & modules here
+////        modules(...)
+//    }
 }
+
+fun KoinApplication.koinConfig3() {
+
+}
+
+//fun koinConfiguration() = koinApplication {
+//    // your configuration & modules here
+////    modules(...)
+//}
