@@ -5,6 +5,8 @@ import androidx.core.content.edit
 import com.negusoft.localauth.vault.EncryptedValue
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.vault.lock.PinLock
+import com.negusoft.localauth.vault.lock.open
+import com.negusoft.localauth.vault.lock.registerPinLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable

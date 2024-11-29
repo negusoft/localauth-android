@@ -8,6 +8,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.vault.lock.PinLock
 import com.negusoft.localauth.vault.lock.PinLockException
+import com.negusoft.localauth.vault.lock.open
+import com.negusoft.localauth.vault.lock.registerPinLock
 
 import org.junit.Test
 import org.junit.runner.RunWith
