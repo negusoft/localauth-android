@@ -111,7 +111,7 @@ object VaultListView {
                         selectVault = selectVault,
                         deleteVault = deleteVault,
                         pinLockEnabled = vault.pinLockEnabled,
-                        biometricLockEnabled = false
+                        biometricLockEnabled = vault.biometricLockEnabled
                     )
                 }
             }

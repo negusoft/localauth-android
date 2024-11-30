@@ -40,8 +40,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import com.negusoft.localauth.ui.common.InputDialog
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
 
@@ -68,6 +70,7 @@ object VaultDetailsView {
                 }
             }
         }
+        val activity = LocalContext.current as FragmentActivity
 
         val saveRequired = viewModel.saveRequired.collectAsState()
         val showDiscardChangesDialog = remember { mutableStateOf(false) }
@@ -148,7 +151,7 @@ object VaultDetailsView {
             secrets = secretItems.value,
             open = viewModel.isOpen.collectAsState().value,
             pinLockEnabled = vault.value.pinLockEnabled,
-            biometricLockEnabled = false,
+            biometricLockEnabled = vault.value.biometricLockEnabled,
             saveRequired = viewModel.saveRequired.collectAsState().value,
             onNewValue = { showNewValueDialog.value = true },
             onReadValue = { item ->
@@ -165,7 +168,9 @@ object VaultDetailsView {
             onUnlockWithPin = viewModel::unlockWithPinCode,
             onEnablePinLock = viewModel::enablePinLock,
             onDisablePinLock = viewModel::disablePinLock,
-            onUnlockWithBiometric = { TODO() }
+            onUnlockWithBiometric = { viewModel.unlockWithBiometric(activity) },
+            onEnableBiometricLock = { viewModel.enableBiometricLock(activity) },
+            onDisableBiometricLock = viewModel::disableBiometricLock,
         )
     }
 
@@ -187,7 +192,9 @@ object VaultDetailsView {
         onUnlockWithPin: () -> Unit,
         onEnablePinLock: () -> Unit,
         onDisablePinLock: () -> Unit,
-        onUnlockWithBiometric: () -> Unit
+        onUnlockWithBiometric: () -> Unit,
+        onEnableBiometricLock: () -> Unit,
+        onDisableBiometricLock: () -> Unit,
     ) {
         Scaffold(
             modifier = Modifier.background(MaterialTheme.colorScheme.background),
@@ -223,7 +230,9 @@ object VaultDetailsView {
                         onUnlockWithPin = onUnlockWithPin,
                         onEnablePinLock = onEnablePinLock,
                         onDisablePinLock = onDisablePinLock,
-                        onUnlockWithBiometric = onUnlockWithBiometric
+                        onUnlockWithBiometric = onUnlockWithBiometric,
+                        onEnableBiometricLock = onEnableBiometricLock,
+                        onDisableBiometricLock = onDisableBiometricLock
                     )
                 }
                 item {
@@ -345,7 +354,9 @@ object VaultDetailsView {
         onUnlockWithPin: () -> Unit,
         onEnablePinLock: () -> Unit,
         onDisablePinLock: () -> Unit,
-        onUnlockWithBiometric: () -> Unit
+        onUnlockWithBiometric: () -> Unit,
+        onEnableBiometricLock: () -> Unit,
+        onDisableBiometricLock: () -> Unit,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -366,8 +377,8 @@ object VaultDetailsView {
                 modifier = Modifier.weight(1f),
                 title = "Biometric lock",
                 enabled = biometricLockEnabled,
-                onEnable = {},
-                onDisable = {},
+                onEnable = onEnableBiometricLock,
+                onDisable = onDisableBiometricLock,
                 open = open,
                 onUnlock = onUnlockWithBiometric,
                 color = Color.Green
@@ -498,7 +509,9 @@ private fun Preview() {
             onUnlockWithPin = {},
             onEnablePinLock = {},
             onDisablePinLock = {},
-            onUnlockWithBiometric = {}
+            onUnlockWithBiometric = {},
+            onEnableBiometricLock = {},
+            onDisableBiometricLock = {}
         )
     }
 }

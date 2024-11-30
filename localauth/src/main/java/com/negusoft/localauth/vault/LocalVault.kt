@@ -119,7 +119,7 @@ class LocalVault private constructor(
          * throw an exception if the registration was not possible.
          */
         internal suspend fun <Input, Vault: VaultLock<Input>> registerLock(
-            registration: (ByteArray) -> Vault
+            registration: suspend (ByteArray) -> Vault
         ): Vault {
             val privateKeyBytes = privateKey.encoded
             return registration(privateKeyBytes)

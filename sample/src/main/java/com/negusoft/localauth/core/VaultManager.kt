@@ -2,10 +2,13 @@ package com.negusoft.localauth.core
 
 import android.content.Context
 import androidx.core.content.edit
+import androidx.fragment.app.FragmentActivity
 import com.negusoft.localauth.vault.EncryptedValue
 import com.negusoft.localauth.vault.LocalVault
+import com.negusoft.localauth.vault.lock.BiometricLock
 import com.negusoft.localauth.vault.lock.PinLock
 import com.negusoft.localauth.vault.lock.open
+import com.negusoft.localauth.vault.lock.registerBiometricLock
 import com.negusoft.localauth.vault.lock.registerPinLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -113,6 +116,7 @@ class VaultModel private constructor(
     val name: String,
     val encoded: ByteArray,
     private val pinLockEncoded: ByteArray? = null,
+    private val biometricLockEncoded: ByteArray? = null,
     val secretValues: List<SecretValueModel> = listOf(),
     @Transient private var _vault: LocalVault? = null
 ) {
@@ -131,6 +135,9 @@ class VaultModel private constructor(
     val pinLockEnabled get() = pinLockEncoded != null
     val pinLock: PinLock? by lazy { pinLockEncoded?.let { PinLock.restore(it) } }
 
+    val biometricLockEnabled get() = biometricLockEncoded != null
+    val biometricLock: BiometricLock? by lazy { biometricLockEncoded?.let { BiometricLock.restore(it) } }
+
     fun readValueWithPin(value: SecretValueModel, pin: String): String {
         val openVault = open(pin)
         return openVault.readValue(value).also {
@@ -144,13 +151,20 @@ class VaultModel private constructor(
         return OpenVaultModel(this, openVault)
     }
 
+    suspend fun openBiometric(activity: FragmentActivity): OpenVaultModel {
+        val biometricLock = biometricLock ?: throw IllegalStateException("No biometric lock")
+        val openVault = vault.open(activity, biometricLock)
+        return OpenVaultModel(this, openVault)
+    }
+
     fun modify(
         name: String = this.name,
         pinLockEncoded: ByteArray? = this.pinLockEncoded,
+        biometricLockEncoded: ByteArray? = this.biometricLockEncoded,
         values: List<SecretValueModel> = this.secretValues
-    ) = VaultModel(id, name, encoded, pinLockEncoded, values, _vault)
+    ) = VaultModel(id, name, encoded, pinLockEncoded, biometricLockEncoded, values, _vault)
 
-    val hasAnyVaults: Boolean get() = pinLockEnabled// || biometricLockEnabled
+    val hasAnyVaults: Boolean get() = pinLockEnabled || biometricLockEnabled
 }
 
 class OpenVaultModel(
@@ -165,13 +179,24 @@ class OpenVaultModel(
         return resultBytes.toString(Charsets.UTF_8)
     }
 
-    fun registerPinLock(id: String, password: String) {
+    fun registerPinLock(password: String) {
+        val id = "${vault.id}_pin_lock"
         val lock =  openVault.registerPinLock(id, password)
         vault = vault.modify(pinLockEncoded = lock.encode())
     }
 
     fun removePinLock() {
         vault = vault.modify(pinLockEncoded = null)
+    }
+
+    suspend fun registerBiometricLock(activity: FragmentActivity) {
+        val id = "${vault.id}_biometric_lock"
+        val lock =  openVault.registerBiometricLock(id, activity)
+        vault = vault.modify(biometricLockEncoded = lock.encode())
+    }
+
+    fun removeBiometricLock() {
+        vault = vault.modify(biometricLockEncoded = null)
     }
 
     fun close() {

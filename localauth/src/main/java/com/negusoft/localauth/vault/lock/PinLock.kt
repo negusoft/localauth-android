@@ -75,7 +75,7 @@ class PinLock(
     @Throws(PinLockException::class)
     override suspend fun unlock(input: Input): ByteArray
         = unlockSync(input)
-    
+
     /**
      * Returns the secret on success.
      */

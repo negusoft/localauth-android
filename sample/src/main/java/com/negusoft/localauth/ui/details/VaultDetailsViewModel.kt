@@ -1,14 +1,18 @@
 package com.negusoft.localauth.ui.details
 
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.negusoft.localauth.core.OpenVaultModel
 import com.negusoft.localauth.core.SecretValueModel
 import com.negusoft.localauth.core.VaultManager
 import com.negusoft.localauth.core.VaultModel
 import com.negusoft.localauth.ui.common.ErrorModel
 import com.negusoft.localauth.ui.common.RetryErrorModel
+import com.negusoft.localauth.vault.lock.BiometricLockException
 import com.negusoft.localauth.vault.lock.PinLockException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * Edit vault with given vault id. If the id is null, a new vault is created.
@@ -32,6 +36,7 @@ class VaultDetailsViewModel(
 
     val errorNoLocks = MutableStateFlow<ErrorModel?>(null)
     val errorWrongPin = MutableStateFlow<RetryErrorModel?>(null)
+    val errorBiometricFailed = MutableStateFlow<ErrorModel?>(null)
 
     init {
         if (vaultId != null) {
@@ -62,7 +67,7 @@ class VaultDetailsViewModel(
 
     private fun doEnablePinLock(pin: String) {
         val openVault = openVault ?: error("Vault is not open")
-        openVault.registerPinLock(vault.value.id, pin)
+        openVault.registerPinLock(pin)
         saveRequired.value = true
         vault.value = openVault.vault
     }
@@ -96,6 +101,41 @@ class VaultDetailsViewModel(
             )
         } finally {
             pinInput.value = null
+        }
+    }
+
+    /// BIOMETRIC LOCK =======================
+
+    fun enableBiometricLock(activity: FragmentActivity) {
+        val openVault = openVault ?: error("Vault is not open")
+        viewModelScope.launch {
+            openVault.registerBiometricLock(activity)
+            saveRequired.value = true
+            vault.value = openVault.vault
+        }
+    }
+
+    fun disableBiometricLock() {
+        val openVault = openVault ?: error("Vault is not open")
+        openVault.removeBiometricLock()
+        saveRequired.value = true
+        vault.value = openVault.vault
+    }
+
+    fun unlockWithBiometric(activity: FragmentActivity) {
+        viewModelScope.launch {
+            try {
+                openVault = vault.value.openBiometric(activity)
+                isOpen.value = true
+            } catch (e: BiometricLockException) {
+                e.printStackTrace()
+                when (e.reason) {
+                    BiometricLockException.Reason.CANCELLATION -> return@launch
+                    BiometricLockException.Reason.ERROR -> errorBiometricFailed.value = ErrorModel(
+                        dismiss = { errorBiometricFailed.value = null }
+                    )
+                }
+            }
         }
     }
 

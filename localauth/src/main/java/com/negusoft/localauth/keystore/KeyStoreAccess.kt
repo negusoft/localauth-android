@@ -67,6 +67,12 @@ object KeyStoreAccess {
 
     class Entry(private val spec: KeyGenParameterSpec) {
 
+        fun getEncryptCipherAES() = getEncryptCipherAES(spec)
+        fun getDecryptCipherAES(encryptedData: ByteArray): Cipher? {
+            val iv = extractIv(encryptedData)
+            return getDecryptCipherAES(spec, iv)
+        }
+
         fun encrypt(data: ByteArray): ByteArray {
             val alias = spec.keystoreAlias
 
@@ -144,6 +150,11 @@ object KeyStoreAccess {
             }
 
             return true
+        }
+
+
+        fun extractIv(encryptedData: ByteArray): ByteArray {
+            return encryptedData.copyOfRange(0, IV_SIZE_IN_BYTES)
         }
 
         fun decrypt(encryptedData: ByteArray): ByteArray? {
