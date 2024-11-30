@@ -1,21 +1,26 @@
 package com.negusoft.localauth
 
 import android.content.Context
-import android.content.SharedPreferences
+import android.security.KeyStoreException
 import androidx.core.content.edit
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.negusoft.localauth.vault.LocalVault
+import com.negusoft.localauth.vault.lock.BiometricLock
+import com.negusoft.localauth.vault.lock.BiometricLockException
 import com.negusoft.localauth.vault.lock.PinLock
 import com.negusoft.localauth.vault.lock.PinLockException
 import com.negusoft.localauth.vault.lock.open
+import com.negusoft.localauth.vault.lock.registerBiometricLock
 import com.negusoft.localauth.vault.lock.registerPinLock
+import kotlinx.coroutines.runBlocking
 
 import org.junit.Test
 import org.junit.runner.RunWith
 
 import org.junit.Assert.*
 import org.junit.Before
+import javax.crypto.IllegalBlockSizeException
 
 /**
  * Test Vault logic.
@@ -66,67 +71,25 @@ class VaultTest {
         vault.open(pinLock, "12345")
     }
 
-    // ------------ OLD
-
     @Test
-    fun createStoreAndRetrieveOld() {
-        // Set up new Vault with pin lock
-        LocalAuth.createNewVault(prefs, "test_vault").apply {
-            registerPinLock("12345")
+    fun testBiometricLock() {
+        lateinit var biometricLock: BiometricLock
+        val vault = LocalVault.create { openVault ->
+            biometricLock = openVault.registerBiometricLock("lockId")
         }
 
-        // Restore vault
-        val vault = LocalAuth.restoreVault(prefs, "test_vault")
-            ?: error("Vault not restored.")
-
-        // Save sample value
-        vault.saveValue("Hello, Vault!", "test_value_key")
-        assertTrue(prefs.contains("test_value_key"))
-
-        // Open vault with pin code
-        val openVault = vault.openPinLock("12345")
-            ?: error("Vault not opened.")
-
-        val savedValue = openVault.getValue("test_value_key")
-        assertEquals("Hello, Vault!", savedValue)
-    }
-
-//    @Test
-//    fun testPinLockOld() {
-//        val vault = LocalAuth.createNewVault(prefs, "test_vault").apply {
-//            registerPinLock("12345")
-//        }.closed()
-//
-//        vault.openPinLock("wrong").also { open ->
-//            assertNull(open)
-//        }
-//        vault.openPinLock("12345").also { open ->
-//            assertNotNull(open)
-//        }
-//    }
-
-    @Test
-    fun testNoLock() {
-        val vault = LocalAuth.createNewVault(prefs, "test_vault").closed()
-
-        vault.openPinLock("any").also { open ->
-            assertNull(open)
+        // The lock should fail if not authenticated with BiometricPrompt
+        runBlocking {
+            try {
+                biometricLock.unlock { it }
+                fail("Should have thrown")
+            } catch (e: BiometricLockException) {
+                assert(e.reason == BiometricLockException.Reason.ERROR)
+                val cause = e.cause ?: error("No cause")
+                assert(cause is IllegalBlockSizeException)
+            }
         }
-    }
 
-//    @Test
-//    fun testBiometricLock() {
-//        val vault = LocalAuth.createNewVault(prefs, "test_vault").apply {
-//            getActivity()
-//            InstrumentationRegistry.getInstrumentation().newActivity()
-//            registerBiometricLock(appContext)
-//        }.closed()
-//
-//        vault.openPinLock("wrong").also { open ->
-//            assertNull(open)
-//        }
-//        vault.openPinLock("12345").also { open ->
-//            assertNotNull(open)
-//        }
-//    }
+        // Open can't be tested since BiometricPrompt is not available in testing
+    }
 }

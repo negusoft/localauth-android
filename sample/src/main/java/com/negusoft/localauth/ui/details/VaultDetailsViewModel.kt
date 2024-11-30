@@ -108,11 +108,9 @@ class VaultDetailsViewModel(
 
     fun enableBiometricLock(activity: FragmentActivity) {
         val openVault = openVault ?: error("Vault is not open")
-        viewModelScope.launch {
-            openVault.registerBiometricLock(activity)
-            saveRequired.value = true
-            vault.value = openVault.vault
-        }
+        openVault.registerBiometricLock()
+        saveRequired.value = true
+        vault.value = openVault.vault
     }
 
     fun disableBiometricLock() {

@@ -16,7 +16,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import java.util.UUID
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -189,9 +188,9 @@ class OpenVaultModel(
         vault = vault.modify(pinLockEncoded = null)
     }
 
-    suspend fun registerBiometricLock(activity: FragmentActivity) {
+    fun registerBiometricLock() {
         val id = "${vault.id}_biometric_lock"
-        val lock =  openVault.registerBiometricLock(id, activity)
+        val lock =  openVault.registerBiometricLock(id)
         vault = vault.modify(biometricLockEncoded = lock.encode())
     }
 

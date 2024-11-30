@@ -1,7 +1,6 @@
 package com.negusoft.localauth.vault.lock
 
 import com.negusoft.localauth.crypto.CryptoUtils
-import com.negusoft.localauth.crypto.CryptoUtilsRSA
 import com.negusoft.localauth.crypto.PasswordEncryptedData
 import com.negusoft.localauth.keystore.KeyStoreAccess
 import com.negusoft.localauth.persistence.ByteCoding
@@ -9,7 +8,6 @@ import com.negusoft.localauth.persistence.readStringProperty
 import com.negusoft.localauth.persistence.writeProperty
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.vault.LocalVault.OpenVault
-import com.negusoft.localauth.vault.LocalVaultException
 
 class PinLockException(message: String, cause: Throwable? = null)
     : VaultLockException(message, cause)
@@ -33,11 +31,7 @@ class PinLock(
         ): PinLock {
             try {
                 val privateKeyPasswordEncrypted = CryptoUtils.encryptWithPassword(pin, privateKeyEncoded).bytes
-                val entry = KeyStoreAccess.getEntry(
-                    alias = keystoreAlias,
-                    protection = KeyStoreAccess.Protection.DEFAULT,
-                    isStrongBoxBacked = false
-                )
+                val entry = KeyStoreAccess.createSecretKeyEntry(keystoreAlias, false)
                 val encryptedData = entry.encrypt(privateKeyPasswordEncrypted)
                 return PinLock(keystoreAlias, encryptedData)
             } catch (t: Throwable) {
@@ -81,12 +75,8 @@ class PinLock(
      */
     override fun unlockSync(input: Input): ByteArray {
         try {
-            val pinCodeEntry = KeyStoreAccess.getEntry(
-                alias = keystoreAlias,
-                protection = KeyStoreAccess.Protection.DEFAULT,
-                isStrongBoxBacked = false
-            )
-            val encryptedSecret = pinCodeEntry.decrypt(encryptedSecret) ?: throw PinLockException("Keystore decryption failed, data might be corrupted.")
+            val entry = KeyStoreAccess.getSecretKeyEntry(keystoreAlias) ?: throw PinLockException("No entry available in the keystore for alias '$keystoreAlias'.")
+            val encryptedSecret = entry.decrypt(encryptedSecret) ?: throw PinLockException("Keystore decryption failed, data might be corrupted.")
             val privateKeyBytes = CryptoUtils.decryptWithPassword(input.value, PasswordEncryptedData(encryptedSecret)) ?: throw PinLockException("Wrong PIN code.")
             return privateKeyBytes
         } catch (t: Throwable) {

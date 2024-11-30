@@ -42,6 +42,12 @@ object CryptoUtilsRSA {
         }.doFinal(plaintext)
     }
 
+    fun encryptCipher(publicKey: PublicKey): Cipher {
+        return Cipher.getInstance(ENCRYPTION_ALGORITHM).apply {
+            init(Cipher.ENCRYPT_MODE, publicKey, parameterSpecOAEP)
+        }
+    }
+
     /**
      * Decrypt data using the given private key.
      */
@@ -49,6 +55,15 @@ object CryptoUtilsRSA {
         return Cipher.getInstance(ENCRYPTION_ALGORITHM).apply {
             init(Cipher.DECRYPT_MODE, privateKey, parameterSpecOAEP)
         }.doFinal(ciphertext)
+    }
+
+    /**
+     * Decrypt data using the given private key.
+     */
+    fun decryptCipher(privateKey: PrivateKey): Cipher {
+        return Cipher.getInstance(ENCRYPTION_ALGORITHM).apply {
+            init(Cipher.DECRYPT_MODE, privateKey, parameterSpecOAEP)
+        }
     }
 
     /**

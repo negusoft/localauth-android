@@ -58,7 +58,7 @@ object CryptoUtils {
 
     /**
      * Decrypt data using the given password (AES-GCM encryption).
-     * The ciphertext musut have the following format: [IV(12) + ENCRYPTED_BYTES(n) + TAG(16)]
+     * The ciphertext must have the following format: [IV(12) + ENCRYPTED_BYTES(n) + TAG(16)]
      */
     @Throws
     fun decrypt(ciphertext: ByteArray, ciphertextOffset: Int, secretKey: SecretKey): ByteArray {

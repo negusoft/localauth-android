@@ -176,7 +176,7 @@ class LocalVault private constructor(
     @Throws(LocalVaultException::class)
     fun encrypt(value: ByteArray): EncryptedValue {
         try {
-            // If the that is small enough -> Encrypt it with the public key directly
+            // If the data is small enough -> Encrypt it with the public key directly
             val maxDataSize = CryptoUtilsRSA.maxEncryptDataSize(publicKey) ?: 0
             if (value.size <= maxDataSize) {
                 val encrypted = CryptoUtilsRSA.encrypt(value, publicKey)
