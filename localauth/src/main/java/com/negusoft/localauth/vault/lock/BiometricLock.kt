@@ -1,9 +1,15 @@
 package com.negusoft.localauth.vault.lock
 
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import androidx.fragment.app.FragmentActivity
-import com.negusoft.localauth.crypto.CryptoUtils
+import com.negusoft.localauth.crypto.Ciphers
+import com.negusoft.localauth.crypto.Keys
+import com.negusoft.localauth.keystore.AndroidKeyStore
 import com.negusoft.localauth.keystore.BiometricHelper
-import com.negusoft.localauth.keystore.KeyStoreAccess
+import com.negusoft.localauth.keystore.setBiometricAuthenticated
+import com.negusoft.localauth.keystore.setRSA_OAEPPadding
+import com.negusoft.localauth.keystore.setStrongBoxBacked
 import com.negusoft.localauth.persistence.ByteCoding
 import com.negusoft.localauth.persistence.readStringProperty
 import com.negusoft.localauth.persistence.writeProperty
@@ -28,6 +34,12 @@ class BiometricLock(
 
     companion object {
         private const val ENCODING_VERSION: Byte = 0x00
+        private fun keySpec(alias: String, strongBoxBacked: Boolean): KeyGenParameterSpec =
+            KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                .setRSA_OAEPPadding()
+                .setBiometricAuthenticated()
+                .setStrongBoxBacked(strongBoxBacked)
+                .build()
 
         @Throws(BiometricLockException::class)
         internal fun register(
@@ -35,78 +47,16 @@ class BiometricLock(
             privateKeyEncoded: ByteArray
         ): BiometricLock {
             try {
-                val entry = KeyStoreAccess.createKeyPairEntry(keystoreAlias, false)
-                val intermediateKey = CryptoUtils.generateSecretKey()
-                val encryptedPrivateKey = CryptoUtils.encrypt(privateKeyEncoded, intermediateKey)
-                val encryptedIntermediateKey = entry.encrypt(intermediateKey.encoded)
+                val spec = keySpec(keystoreAlias, false)
+                val key = AndroidKeyStore().generateKeyPair(spec)
+                val intermediateKey = Keys.AES.generateSecretKey()
+                val encryptedPrivateKey = Ciphers.AES_GCM_NoPadding.encrypt(privateKeyEncoded, intermediateKey)
+                val encryptedIntermediateKey = Ciphers.RSA_ECB_OAEP.encrypt(intermediateKey.encoded, key.public)
                 return BiometricLock(keystoreAlias, encryptedIntermediateKey, encryptedPrivateKey)
             } catch (e: Throwable) {
                 throw BiometricLockException("Failed to create Biometric lock.", reason = BiometricLockException.Reason.ERROR, e)
             }
-
-//            val lockedCipher = CryptoUtilsRSA.encryptCipher(publicKey = entry.keyPair.public)
-//            try {
-//                val entry = KeyStoreAccessOld.getEntry(
-//                    alias = keystoreAlias,
-//                    protection = KeyStoreAccessOld.Protection.BIOMETRIC,
-//                    isStrongBoxBacked = false
-//                )
-//                val lockedCipher = entry.getEncryptCipherAES()
-//                val unlockedCipher = BiometricHelper.showBiometricPrompt(
-//                    activity = activity,
-//                    cipher = lockedCipher,
-//                    title = "Unlock vault",
-//                    cancelText = "Cancel"
-//                ) ?: throw BiometricLockException("Biometric authentication cancelled.", reason = BiometricLockException.Reason.CANCELLATION)
-//                val encryptedData = unlockedCipher.encrypt(privateKeyEncoded)
-//                return BiometricLock(keystoreAlias, encryptedData)
-//            } catch (t: Throwable) {
-//                throw BiometricLockException("Failed to create Biometric lock.", reason = BiometricLockException.Reason.ERROR, t)
-//            }
         }
-
-//        @Throws(BiometricLockException::class)
-//        internal suspend fun register(
-//            keystoreAlias: String,
-//            privateKeyEncoded: ByteArray,
-//            activity: FragmentActivity
-//        ): BiometricLock {
-//            try {
-//                val entry = KeyStoreAccessOld.getEntry(
-//                    alias = keystoreAlias,
-//                    protection = KeyStoreAccessOld.Protection.BIOMETRIC,
-//                    isStrongBoxBacked = false
-//                )
-//                val lockedCipher = entry.getEncryptCipherAES()
-//                val unlockedCipher = BiometricHelper.showBiometricPrompt(
-//                    activity = activity,
-//                    cipher = lockedCipher,
-//                    title = "Unlock vault",
-//                    cancelText = "Cancel"
-//                ) ?: throw BiometricLockException("Biometric authentication cancelled.", reason = BiometricLockException.Reason.CANCELLATION)
-//                val encryptedData = unlockedCipher.encrypt(privateKeyEncoded)
-//                return BiometricLock(keystoreAlias, encryptedData)
-//            } catch (t: Throwable) {
-//                throw BiometricLockException("Failed to create Biometric lock.", reason = BiometricLockException.Reason.ERROR, t)
-//            }
-//        }
-
-//        private const val IV_SIZE_IN_BYTES = 12
-//        private fun Cipher.encrypt(data: ByteArray): ByteArray {
-//            val outputSize = getOutputSize(data.size)
-//            val output = ByteArray(IV_SIZE_IN_BYTES + outputSize)
-//            doFinal(data, 0, data.size, output, IV_SIZE_IN_BYTES)
-//            iv.copyInto(output, 0)
-//            return output
-//        }
-//        private fun Cipher.decrypt(data: ByteArray): ByteArray? {
-//            try {
-//                return doFinal(data, IV_SIZE_IN_BYTES, data.size - IV_SIZE_IN_BYTES)
-//            } catch (e: Throwable) {
-//                e.printStackTrace()
-//                return null
-//            }
-//        }
 
         /**
          * Restore the lock from the data produced by 'encode()'.
@@ -152,14 +102,10 @@ class BiometricLock(
     @Throws(BiometricLockException::class)
     suspend fun unlock(authenticator: suspend (Cipher) -> Cipher): ByteArray {
         try {
-            val entry = KeyStoreAccess.getKeyPairEntry(keystoreAlias, false)
-                ?: throw BiometricLockException("No keystore entry for key '$keystoreAlias'.")
-            val intermediateKeyBytes = entry.decrypt(
-                data = encryptedIntermediateKey,
-                authenticator = authenticator
-            )
-            val intermediateKey = CryptoUtils.decodeSecretKey(intermediateKeyBytes)
-            val privateKeyBytes = CryptoUtils.decrypt(encryptedPrivateKey, intermediateKey)
+            val key = AndroidKeyStore().getKeyPair(keystoreAlias)
+            val intermediateKeyBytes = Ciphers.RSA_ECB_OAEP.decrypter(key.private).decrypt(encryptedPrivateKey, authenticator)
+            val intermediateKey = Keys.AES.decodeSecretKey(intermediateKeyBytes)
+            val privateKeyBytes = Ciphers.AES_GCM_NoPadding.decrypt(encryptedPrivateKey, intermediateKey)
             return privateKeyBytes
         } catch (e: BiometricLockException) {
             throw e

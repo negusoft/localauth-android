@@ -1,7 +1,7 @@
 package com.negusoft.localauth.vault
 
-import com.negusoft.localauth.crypto.CryptoUtils
-import com.negusoft.localauth.crypto.CryptoUtilsRSA
+import com.negusoft.localauth.crypto.Ciphers
+import com.negusoft.localauth.crypto.Keys
 import com.negusoft.localauth.persistence.ByteCoding
 import com.negusoft.localauth.persistence.ByteCodingException
 import com.negusoft.localauth.vault.lock.VaultLock
@@ -51,14 +51,14 @@ class LocalVault private constructor(
 
         fun create(): OpenVault {
             // generate master key pair
-            val masterKeyPair = CryptoUtilsRSA.generateKeyPair()
+            val masterKeyPair = Keys.RSA.generateKeyPair()
             val vault = LocalVault(masterKeyPair.public)
             return OpenVault(vault, masterKeyPair.private)
         }
 
         fun create(config: (OpenVault) -> Unit): LocalVault {
             // generate master key pair
-            val masterKeyPair = CryptoUtilsRSA.generateKeyPair()
+            val masterKeyPair = Keys.RSA.generateKeyPair()
             val vault = LocalVault(masterKeyPair.public)
             val openVault = OpenVault(vault, masterKeyPair.private)
                 .apply(config)
@@ -83,7 +83,7 @@ class LocalVault private constructor(
                 throw LocalVaultException("Wrong encoding version (${encoded[0]}).")
             
             val keyBytes = decoder.readFinal()
-            return CryptoUtilsRSA.decodePublicKey(keyBytes) ?: throw LocalVaultException("Failed to decode public key")
+            return Keys.RSA.decodePublicKey(keyBytes) ?: throw LocalVaultException("Failed to decode public key")
         }
     }
 
@@ -99,15 +99,15 @@ class LocalVault private constructor(
 
                 // If no secret key -> Directly decrypt with the private key
                 if (encryptedSecretKey == null) {
-                    return CryptoUtilsRSA.decrypt(encryptedData, privateKey)
+                    return Ciphers.RSA_ECB_OAEP.decrypt(encryptedData, privateKey)
                 }
 
                 // Decrypt the secret
-                val secretKeyEncoded = CryptoUtilsRSA.decrypt(encryptedSecretKey, privateKey)
-                val secretKey = CryptoUtils.decodeSecretKey(secretKeyEncoded)
+                val secretKeyEncoded = Ciphers.RSA_ECB_OAEP.decrypt(encryptedSecretKey, privateKey)
+                val secretKey = Keys.AES.decodeSecretKey(secretKeyEncoded)
 
                 // Use the secret key to decrypt the value
-                return CryptoUtils.decrypt(encryptedData, secretKey)
+                return Ciphers.AES_GCM_NoPadding.decrypt(encryptedData, secretKey)
             } catch (e: Throwable) {
                 throw LocalVaultException("Failed to decrypt data.", e)
             }
@@ -149,7 +149,7 @@ class LocalVault private constructor(
      */
     @Throws(LocalVaultException::class)
     internal fun open(privateKeyBytes: ByteArray): OpenVault {
-        val privateKey = CryptoUtilsRSA.decodePrivateKey(privateKeyBytes)
+        val privateKey = Keys.RSA.decodePrivateKey(privateKeyBytes)
             ?: throw LocalVaultException("Failed to decode private key.")
         return OpenVault(this, privateKey)
     }
@@ -177,18 +177,18 @@ class LocalVault private constructor(
     fun encrypt(value: ByteArray): EncryptedValue {
         try {
             // If the data is small enough -> Encrypt it with the public key directly
-            val maxDataSize = CryptoUtilsRSA.maxEncryptDataSize(publicKey) ?: 0
+            val maxDataSize = Ciphers.RSA_ECB_OAEP.maxEncryptDataSize(publicKey) ?: 0
             if (value.size <= maxDataSize) {
-                val encrypted = CryptoUtilsRSA.encrypt(value, publicKey)
+                val encrypted = Ciphers.RSA_ECB_OAEP.encrypt(value, publicKey)
                 return EncryptedValue(null, encrypted)
             }
 
             // Generate a secret key to encrypt the value
-            val secretKey = CryptoUtils.generateSecretKey()
-            val encryptedData = CryptoUtils.encrypt(value, secretKey)
+            val secretKey = Keys.AES.generateSecretKey()
+            val encryptedData = Ciphers.AES_GCM_NoPadding.encrypt(value, secretKey)
 
             // Encrypt the secret key with the public key
-            val encryptedSecretKey = CryptoUtilsRSA.encrypt(secretKey.encoded, publicKey)
+            val encryptedSecretKey = Ciphers.RSA_ECB_OAEP.encrypt(secretKey.encoded, publicKey)
 
             return EncryptedValue(encryptedSecretKey, encryptedData)
         } catch (e: Throwable) {

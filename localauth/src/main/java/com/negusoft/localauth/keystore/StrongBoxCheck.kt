@@ -51,7 +51,7 @@ class StrongBoxCheck {
             e.printStackTrace()
             return false
         } finally {
-            keyStore.deleteEntry(alias)
+            keyStore.deleteKey(alias)
         }
     }
 }

@@ -1,16 +1,22 @@
 package com.negusoft.localauth.vault.lock
 
-import com.negusoft.localauth.crypto.CryptoUtils
-import com.negusoft.localauth.crypto.PasswordEncryptedData
-import com.negusoft.localauth.keystore.KeyStoreAccess
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import com.negusoft.localauth.crypto.Ciphers
+import com.negusoft.localauth.crypto.decryptWithPassword
+import com.negusoft.localauth.crypto.encryptWithPassword
+import com.negusoft.localauth.keystore.AndroidKeyStore
+import com.negusoft.localauth.keystore.setAES_GCM_NoPadding
+import com.negusoft.localauth.keystore.setStrongBoxBacked
 import com.negusoft.localauth.persistence.ByteCoding
 import com.negusoft.localauth.persistence.readStringProperty
 import com.negusoft.localauth.persistence.writeProperty
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.vault.LocalVault.OpenVault
 
-class PinLockException(message: String, cause: Throwable? = null)
+open class PinLockException(message: String, cause: Throwable? = null)
     : VaultLockException(message, cause)
+class WrongPinException : PinLockException("Wrong PIN code.")
 
 class PinLock(
     val keystoreAlias: String,
@@ -23,6 +29,12 @@ class PinLock(
     companion object {
         private const val ENCODING_VERSION: Byte = 0x00
 
+        private fun keySpec(alias: String, strongBoxBacked: Boolean) =
+            KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                .setAES_GCM_NoPadding()
+                .setStrongBoxBacked(strongBoxBacked)
+                .build()
+
         @Throws(PinLockException::class)
         internal fun register(
             keystoreAlias: String,
@@ -30,9 +42,10 @@ class PinLock(
             pin: String
         ): PinLock {
             try {
-                val privateKeyPasswordEncrypted = CryptoUtils.encryptWithPassword(pin, privateKeyEncoded).bytes
-                val entry = KeyStoreAccess.createSecretKeyEntry(keystoreAlias, false)
-                val encryptedData = entry.encrypt(privateKeyPasswordEncrypted)
+                val privateKeyPasswordEncrypted = Ciphers.AES_GCM_NoPadding.encryptWithPassword(pin, privateKeyEncoded)
+                val spec = keySpec(keystoreAlias, false)
+                val key = AndroidKeyStore().generateSecretKey(spec)
+                val encryptedData = Ciphers.AES_GCM_NoPadding.encrypter(key).encrypt(privateKeyPasswordEncrypted)
                 return PinLock(keystoreAlias, encryptedData)
             } catch (t: Throwable) {
                 throw PinLockException("Failed to create PIN lock.", t)
@@ -75,9 +88,10 @@ class PinLock(
      */
     override fun unlockSync(input: Input): ByteArray {
         try {
-            val entry = KeyStoreAccess.getSecretKeyEntry(keystoreAlias) ?: throw PinLockException("No entry available in the keystore for alias '$keystoreAlias'.")
-            val encryptedSecret = entry.decrypt(encryptedSecret) ?: throw PinLockException("Keystore decryption failed, data might be corrupted.")
-            val privateKeyBytes = CryptoUtils.decryptWithPassword(input.value, PasswordEncryptedData(encryptedSecret)) ?: throw PinLockException("Wrong PIN code.")
+            val key = AndroidKeyStore().getSecretKey(keystoreAlias)
+            val encryptedSecret = Ciphers.AES_GCM_NoPadding.decrypter(key, encryptedSecret).decrypt(encryptedSecret)
+            val privateKeyBytes = Ciphers.AES_GCM_NoPadding.decryptWithPassword(input.value, encryptedSecret)
+                ?: throw WrongPinException()
             return privateKeyBytes
         } catch (t: Throwable) {
             throw PinLockException("Failed to unlock secret with PIN", t)

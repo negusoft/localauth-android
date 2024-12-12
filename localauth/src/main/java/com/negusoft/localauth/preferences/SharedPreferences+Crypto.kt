@@ -1,8 +1,8 @@
 package com.negusoft.localauth.preferences
 
 import android.content.SharedPreferences
-import com.negusoft.localauth.crypto.CryptoUtils
-import com.negusoft.localauth.crypto.CryptoUtilsRSA
+import com.negusoft.localauth.crypto.Ciphers
+import com.negusoft.localauth.crypto.Keys
 import java.security.*
 
 /****************************************************************
@@ -16,20 +16,20 @@ import java.security.*
  */
 fun SharedPreferences.Editor.putEncrypted(key: String, value: ByteArray, publicKey: PublicKey) {
     // If the that is small enough -> Encrypt it with the public key directly
-    val maxDataSize = CryptoUtilsRSA.maxEncryptDataSize(publicKey) ?: 0
+    val maxDataSize = Ciphers.RSA_ECB_OAEP.maxEncryptDataSize(publicKey) ?: 0
     if (value.size <= maxDataSize) {
-        val encrypted = CryptoUtilsRSA.encrypt(value, publicKey)
+        val encrypted = Ciphers.RSA_ECB_OAEP.encrypt(value, publicKey)
         putByteArray(key, encrypted)
         remove("${key}_secret")
         return
     }
 
     // Generate a secret key to encrypt the value
-    val secretKey = CryptoUtils.generateSecretKey()
-    val encryptedData = CryptoUtils.encrypt(value, secretKey)
+    val secretKey = Keys.AES.generateSecretKey()
+    val encryptedData = Ciphers.AES_GCM_NoPadding.encrypt(value, secretKey)
 
     // Encrypt the secret key with the public key
-    val encryptedSecretKey = CryptoUtilsRSA.encrypt(secretKey.encoded, publicKey)
+    val encryptedSecretKey = Ciphers.RSA_ECB_OAEP.encrypt(secretKey.encoded, publicKey)
 
     // Store the data
     putByteArray(key, encryptedData)
@@ -44,15 +44,15 @@ fun SharedPreferences.getByteArrayEncrypted(key: String, privateKey: PrivateKey)
 
         // If no secret key -> Directly decrypt with the private key
         if (encryptedSecretKey == null) {
-            return CryptoUtilsRSA.decrypt(encryptedData, privateKey)
+            return Ciphers.RSA_ECB_OAEP.decrypt(encryptedData, privateKey)
         }
 
         // Decrypt the secret
-        val secretKeyEncoded = CryptoUtilsRSA.decrypt(encryptedSecretKey, privateKey)
-        val secretKey = CryptoUtils.decodeSecretKey(secretKeyEncoded) ?: return null
+        val secretKeyEncoded = Ciphers.RSA_ECB_OAEP.decrypt(encryptedSecretKey, privateKey)
+        val secretKey = Keys.AES.decodeSecretKey(secretKeyEncoded)
 
         // Use the secret key to decrypt the value
-        return CryptoUtils.decrypt(encryptedData, secretKey)
+        return Ciphers.AES_GCM_NoPadding.decrypt(encryptedData, secretKey)
     } catch (e: Throwable) {
         return null
     }

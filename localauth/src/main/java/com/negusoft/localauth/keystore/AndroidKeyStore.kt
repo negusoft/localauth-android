@@ -63,7 +63,7 @@ class AndroidKeyStore {
         return KeyPair(publicKey, privateKey)
     }
 
-    fun deleteEntry(alias: String) {
+    fun deleteKey(alias: String) {
         keyStore.deleteEntry(alias)
     }
 }
