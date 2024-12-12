@@ -1,5 +1,9 @@
 package com.negusoft.localauth.crypto
 
+import com.negusoft.localauth.crypto.RSA_ECB_OAEP_Cipher.Decrypter
+import com.negusoft.localauth.crypto.RSA_ECB_OAEP_Cipher.Encrypter
+import com.negusoft.localauth.persistence.ByteCoding
+import java.security.GeneralSecurityException
 import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.interfaces.RSAPublicKey
@@ -13,6 +17,8 @@ import javax.crypto.spec.PSource
 object Ciphers {
     val AES_GCM_NoPadding: AES_GCM_NoPaddingCipher get() = AES_GCM_NoPaddingCipher
     val RSA_ECB_OAEP: RSA_ECB_OAEP_Cipher get() = RSA_ECB_OAEP_Cipher
+    val RSA_ECB_OAEPwithAES_GCM_NoPadding: RSA_ECB_OAEP_with_AES_GCM_NoPaddingCipher
+        get() = RSA_ECB_OAEP_with_AES_GCM_NoPaddingCipher
 }
 
 object AES_GCM_NoPaddingCipher {
@@ -64,7 +70,7 @@ object AES_GCM_NoPaddingCipher {
 fun AES_GCM_NoPaddingCipher.encryptWithPassword(password: String, plaintext: ByteArray): ByteArray {
     val salt = Keys.AES.generateSalt()
     val key = Keys.AES.deriveKeyFromPassword(password, salt)
-    val privateKeyEncrypted = Ciphers.AES_GCM_NoPadding.encrypt(plaintext, key)
+    val privateKeyEncrypted = encrypt(plaintext, key)
     return salt + privateKeyEncrypted
 }
 
@@ -127,4 +133,50 @@ object RSA_ECB_OAEP_Cipher {
         }
     }
 
+}
+
+object RSA_ECB_OAEP_with_AES_GCM_NoPaddingCipher {
+
+    fun encrypter(publicKey: PublicKey): Encrypter = Encrypter(publicKey)
+    fun decrypter(privateKey: PrivateKey): Decrypter = Decrypter(privateKey)
+
+    fun encrypt(plaintext: ByteArray, publicKey: PublicKey) = encrypter(publicKey).encrypt(plaintext)
+    fun decrypt(ciphertext: ByteArray, privateKey: PrivateKey) = decrypter(privateKey).decrypt(ciphertext)
+
+    class Encrypter(private val publicKey: PublicKey) {
+        fun encrypt(plaintext: ByteArray): ByteArray {
+            val intermediateKey = Keys.AES.generateSecretKey()
+            val ciphertext = AES_GCM_NoPaddingCipher.encrypt(plaintext, intermediateKey)
+            val encryptedIntermediateKey = RSA_ECB_OAEP_Cipher.encrypt(intermediateKey.encoded, publicKey)
+            return ByteCoding.encode {
+                writeProperty(encryptedIntermediateKey)
+                writeValue(ciphertext)
+            }
+        }
+    }
+
+    class Decrypter(private val privateKey: PrivateKey) {
+
+        fun decrypt(ciphertext: ByteArray): ByteArray {
+            val decoder = ByteCoding.decode(ciphertext)
+            val encryptedIntermediateKey = decoder.readProperty()
+                ?: throw GeneralSecurityException("Ciphertext format error: missing 'intermediate key'.")
+            val valueCiphertext = decoder.readFinal()
+
+            val intermediateKeyBytes = RSA_ECB_OAEP_Cipher.decrypt(encryptedIntermediateKey, privateKey)
+            val intermediateKey = Keys.AES.decodeSecretKey(intermediateKeyBytes)
+            return AES_GCM_NoPaddingCipher.decrypt(valueCiphertext, intermediateKey)
+        }
+
+        suspend fun decrypt(ciphertext: ByteArray, authenticator: suspend (Cipher) -> Cipher): ByteArray {
+            val decoder = ByteCoding.decode(ciphertext)
+            val encryptedIntermediateKey = decoder.readProperty()
+                ?: throw GeneralSecurityException("Ciphertext format error: missing 'intermediate key'.")
+            val valueCiphertext = decoder.readFinal()
+
+            val intermediateKeyBytes = RSA_ECB_OAEP_Cipher.decrypter(privateKey).decrypt(encryptedIntermediateKey, authenticator)
+            val intermediateKey = Keys.AES.decodeSecretKey(intermediateKeyBytes)
+            return AES_GCM_NoPaddingCipher.decrypt(valueCiphertext, intermediateKey)
+        }
+    }
 }

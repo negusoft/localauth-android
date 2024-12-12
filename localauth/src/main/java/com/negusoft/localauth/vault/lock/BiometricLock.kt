@@ -1,7 +1,9 @@
 package com.negusoft.localauth.vault.lock
 
+import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.security.keystore.StrongBoxUnavailableException
 import androidx.fragment.app.FragmentActivity
 import com.negusoft.localauth.crypto.Ciphers
 import com.negusoft.localauth.crypto.Keys
@@ -16,7 +18,9 @@ import com.negusoft.localauth.persistence.writeProperty
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.vault.LocalVault.OpenVault
 import com.negusoft.localauth.vault.LocalVaultException
+import java.security.KeyPair
 import javax.crypto.Cipher
+import javax.crypto.SecretKey
 
 class BiometricLockException(message: String, val reason: Reason = Reason.ERROR, cause: Throwable? = null)
     : VaultLockException(message, cause) {
@@ -25,7 +29,6 @@ class BiometricLockException(message: String, val reason: Reason = Reason.ERROR,
 
 class BiometricLock(
     val keystoreAlias: String,
-    private val encryptedIntermediateKey: ByteArray,
     private val encryptedPrivateKey: ByteArray
 ): VaultLock<BiometricLock.Input> {
 
@@ -44,17 +47,35 @@ class BiometricLock(
         @Throws(BiometricLockException::class)
         internal fun register(
             keystoreAlias: String,
-            privateKeyEncoded: ByteArray
+            privateKeyEncoded: ByteArray,
+            useStrongBoxWhenAvailable: Boolean = true
         ): BiometricLock {
             try {
-                val spec = keySpec(keystoreAlias, false)
-                val key = AndroidKeyStore().generateKeyPair(spec)
-                val intermediateKey = Keys.AES.generateSecretKey()
-                val encryptedPrivateKey = Ciphers.AES_GCM_NoPadding.encrypt(privateKeyEncoded, intermediateKey)
-                val encryptedIntermediateKey = Ciphers.RSA_ECB_OAEP.encrypt(intermediateKey.encoded, key.public)
-                return BiometricLock(keystoreAlias, encryptedIntermediateKey, encryptedPrivateKey)
+                val key = createKey(keystoreAlias, useStrongBoxWhenAvailable)
+//                val intermediateKey = Keys.AES.generateSecretKey()
+                val encryptedPrivateKey = Ciphers.RSA_ECB_OAEPwithAES_GCM_NoPadding.encrypt(privateKeyEncoded, key.public)
+//                val encryptedPrivateKey = Ciphers.AES_GCM_NoPadding.encrypt(privateKeyEncoded, intermediateKey)
+//                val encryptedIntermediateKey = Ciphers.RSA_ECB_OAEP.encrypt(intermediateKey.encoded, key.public)
+                return BiometricLock(keystoreAlias, encryptedPrivateKey)
             } catch (e: Throwable) {
                 throw BiometricLockException("Failed to create Biometric lock.", reason = BiometricLockException.Reason.ERROR, e)
+            }
+        }
+
+        /**
+         * Create StrongBox backed key. Fall back to non StrongBox backed key.
+         */
+        private fun createKey(keystoreAlias: String, useStrongBox: Boolean): KeyPair {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || !useStrongBox) {
+                val spec = keySpec(keystoreAlias, false)
+                return AndroidKeyStore().generateKeyPair(spec)
+            }
+            try {
+                val spec = keySpec(keystoreAlias, true)
+                return AndroidKeyStore().generateKeyPair(spec)
+            } catch (e: StrongBoxUnavailableException) {
+                val spec = keySpec(keystoreAlias, false)
+                return AndroidKeyStore().generateKeyPair(spec)
             }
         }
 
@@ -69,9 +90,8 @@ class BiometricLock(
                 throw BiometricLockException("Wrong encoding version (${encoded[0]}).")
             }
             val alias = decoder.readStringProperty() ?: throw BiometricLockException("Failed to decode 'alias'.")
-            val encryptedIntermediateKey = decoder.readProperty() ?: throw BiometricLockException("Failed to decode 'intermediate key'.")
             val encryptedSecret = decoder.readFinal()
-            return BiometricLock(alias, encryptedIntermediateKey, encryptedSecret)
+            return BiometricLock(alias, encryptedSecret)
         }
     }
 
@@ -79,7 +99,6 @@ class BiometricLock(
     fun encode(): ByteArray {
         return ByteCoding.encode(prefix = byteArrayOf(ENCODING_VERSION)) {
             writeProperty(keystoreAlias)
-            writeProperty(encryptedIntermediateKey)
             writeValue(encryptedPrivateKey)
         }
     }
@@ -103,9 +122,10 @@ class BiometricLock(
     suspend fun unlock(authenticator: suspend (Cipher) -> Cipher): ByteArray {
         try {
             val key = AndroidKeyStore().getKeyPair(keystoreAlias)
-            val intermediateKeyBytes = Ciphers.RSA_ECB_OAEP.decrypter(key.private).decrypt(encryptedPrivateKey, authenticator)
-            val intermediateKey = Keys.AES.decodeSecretKey(intermediateKeyBytes)
-            val privateKeyBytes = Ciphers.AES_GCM_NoPadding.decrypt(encryptedPrivateKey, intermediateKey)
+            val privateKeyBytes = Ciphers.RSA_ECB_OAEPwithAES_GCM_NoPadding.decrypter(key.private).decrypt(encryptedPrivateKey, authenticator)
+//            val intermediateKeyBytes = Ciphers.RSA_ECB_OAEP.decrypter(key.private).decrypt(encryptedPrivateKey, authenticator)
+//            val intermediateKey = Keys.AES.decodeSecretKey(intermediateKeyBytes)
+//            val privateKeyBytes = Ciphers.AES_GCM_NoPadding.decrypt(encryptedPrivateKey, intermediateKey)
             return privateKeyBytes
         } catch (e: BiometricLockException) {
             throw e
@@ -124,9 +144,13 @@ class BiometricLock(
 suspend fun LocalVault.open(activity: FragmentActivity, lock: BiometricLock): OpenVault {
     return open(lock, BiometricLock.Input(activity))
 }
-fun OpenVault.registerBiometricLock(id: String): BiometricLock = registerLockSync { privateKeyEncoded ->
+fun OpenVault.registerBiometricLock(
+    id: String,
+    useStrongBoxWhenAvailable: Boolean = true
+): BiometricLock = registerLockSync { privateKeyEncoded ->
     BiometricLock.register(
         keystoreAlias = id,
-        privateKeyEncoded = privateKeyEncoded
+        privateKeyEncoded = privateKeyEncoded,
+        useStrongBoxWhenAvailable = useStrongBoxWhenAvailable
     )
 }

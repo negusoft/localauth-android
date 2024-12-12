@@ -1,7 +1,9 @@
 package com.negusoft.localauth.vault.lock
 
+import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.security.keystore.StrongBoxUnavailableException
 import com.negusoft.localauth.crypto.Ciphers
 import com.negusoft.localauth.crypto.decryptWithPassword
 import com.negusoft.localauth.crypto.encryptWithPassword
@@ -13,6 +15,8 @@ import com.negusoft.localauth.persistence.readStringProperty
 import com.negusoft.localauth.persistence.writeProperty
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.vault.LocalVault.OpenVault
+import java.io.IOException
+import javax.crypto.SecretKey
 
 open class PinLockException(message: String, cause: Throwable? = null)
     : VaultLockException(message, cause)
@@ -39,16 +43,33 @@ class PinLock(
         internal fun register(
             keystoreAlias: String,
             privateKeyEncoded: ByteArray,
-            pin: String
+            pin: String,
+            useStrongBoxWhenAvailable: Boolean = true
         ): PinLock {
             try {
                 val privateKeyPasswordEncrypted = Ciphers.AES_GCM_NoPadding.encryptWithPassword(pin, privateKeyEncoded)
-                val spec = keySpec(keystoreAlias, false)
-                val key = AndroidKeyStore().generateSecretKey(spec)
+                val key = createKey(keystoreAlias, useStrongBoxWhenAvailable)
                 val encryptedData = Ciphers.AES_GCM_NoPadding.encrypter(key).encrypt(privateKeyPasswordEncrypted)
                 return PinLock(keystoreAlias, encryptedData)
             } catch (t: Throwable) {
                 throw PinLockException("Failed to create PIN lock.", t)
+            }
+        }
+
+        /**
+         * Create StrongBox backed key. Fall back to non StrongBox backed key.
+         */
+        private fun createKey(keystoreAlias: String, useStrongBox: Boolean): SecretKey {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || !useStrongBox) {
+                val spec = keySpec(keystoreAlias, false)
+                return AndroidKeyStore().generateSecretKey(spec)
+            }
+            try {
+                val spec = keySpec(keystoreAlias, true)
+                return AndroidKeyStore().generateSecretKey(spec)
+            } catch (e: StrongBoxUnavailableException) {
+                val spec = keySpec(keystoreAlias, false)
+                return AndroidKeyStore().generateSecretKey(spec)
             }
         }
 
