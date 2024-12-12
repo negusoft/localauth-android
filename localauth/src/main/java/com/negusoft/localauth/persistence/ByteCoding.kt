@@ -1,5 +1,8 @@
 package com.negusoft.localauth.persistence
 
+import kotlin.experimental.and
+import kotlin.experimental.or
+
 class ByteCodingException(message: String, cause: Throwable? = null): Exception(message, cause)
 
 object ByteCoding {
@@ -51,10 +54,59 @@ interface EncoderContext {
     fun writeValue(value: ByteArray)
 }
 
+/**
+ * Encode/decode the size such that.
+ * For every encoded byte, if the byte starts by 1, the value is
+ * shifted 6 bits to the left and added to the next byte.
+ */
+class SizeCoder {
+    companion object {
+        const val VALUE_MASK: Int = 0x0000007F
+        const val FLAG_MASK: Byte = 0x80.toByte()
+    }
+
+    fun encodeSize(size: Int): ByteArray {
+        check(size >= 0) { "Negative values not allowed" }
+        if (size == 0) return byteArrayOf(0)
+
+        var reminder = size
+        val lastByte = (reminder and VALUE_MASK).toByte()
+        reminder = reminder ushr 7
+
+        var result = byteArrayOf(lastByte)
+        while (reminder != 0) {
+            val byteValue = (reminder and VALUE_MASK).toByte() or FLAG_MASK
+            reminder = reminder ushr 7
+            result = byteArrayOf(byteValue, *result)
+        }
+
+        return result
+    }
+
+    fun decodeSize(data: ByteArray, startIndex: Int, bytesRead: (Int) -> Unit): Int {
+        var result = 0
+        var index = startIndex
+        var byteCount = 0
+        while (true) {
+            val byte = data[index]
+            val byteValue = byte.toInt() and VALUE_MASK
+            result += byteValue
+            byteCount += 1
+            index += 1
+            if (byte and FLAG_MASK == 0.toByte()) {
+                bytesRead(byteCount)
+                return result
+            }
+            result = result shl 7
+        }
+    }
+}
+
 class ByteEncoder(
     val prefix: ByteArray? = null
 ) : EncoderContext {
-    private var components = mutableListOf<ByteArray>()
+    private val components = mutableListOf<ByteArray>()
+    private val sizeCoder = SizeCoder()
 
     /**
      * Add a property storing the size followed by the value.
@@ -63,10 +115,9 @@ class ByteEncoder(
      */
     override fun writeProperty(property: ByteArray?) {
         val size = property?.size ?: 0
-        if (size > Byte.MAX_VALUE.toInt())
-            throw ByteCodingException("Property exceeds max size (${Byte.MAX_VALUE})")
+        val sizeBytes = sizeCoder.encodeSize(size)
+        components.add(sizeBytes)
 
-        components.add(byteArrayOf(size.toByte()))
         property?.let { components.add(it) }
     }
 
@@ -93,6 +144,7 @@ class ByteEncoder(
 
 class ByteDecoder(val bytes: ByteArray, startIndex: Int) {
     private var i = startIndex
+    private val sizeCoder = SizeCoder()
 
     /** Read a property in length-value format. It returns null for 0 length properties. */
     @Throws(ByteCodingException::class)
@@ -136,11 +188,14 @@ class ByteDecoder(val bytes: ByteArray, startIndex: Int) {
     @Throws(ByteCodingException::class)
     private fun readSize(): Int {
         try {
-            val size = bytes[i].toInt()
+            val size = sizeCoder.decodeSize(bytes, i) {
+                i += it
+            }
             if (size < 0)
                 throw ByteCodingException("Invalid property size read ($size)")
-            i += 1
             return size
+        } catch (e: IllegalStateException) {
+            throw ByteCodingException("Failed to read property size")
         } catch (e: IndexOutOfBoundsException) {
             throw ByteCodingException("Not enough data to read property size", e)
         }

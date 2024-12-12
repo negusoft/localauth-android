@@ -49,13 +49,40 @@ class ByteCodingTest {
             assertTrue(encoded.contentEquals(byteArrayOf(Byte.MAX_VALUE, *validProperty)))
         }
 
-        ByteArray(Byte.MAX_VALUE.toInt() + 1).let { invalidProperty ->
-            assertThrows(ByteCodingException::class.java) {
-                ByteCoding.encode {
-                    writeProperty(invalidProperty)
-                }
-                fail("Method should have thrown")
+        ByteArray(Byte.MAX_VALUE.toInt() + 1).let { validProperty ->
+            val encoded = ByteCoding.encode {
+                writeProperty(validProperty)
             }
+            assertTrue(encoded.contentEquals(byteArrayOf(0x81.toByte(), 0, *validProperty)))
+        }
+    }
+
+    @Test
+    fun numberEncoding() {
+        fun check(size: Int, expectedEncodedSize: Int) {
+            val sizeCoder = SizeCoder()
+            val encoded = sizeCoder.encodeSize(size)
+            assertEquals(expectedEncodedSize, encoded.size)
+
+            var count = 0
+            val decoded = sizeCoder.decodeSize(encoded, 0) { count = it }
+            assertEquals(size, decoded)
+            assertEquals(expectedEncodedSize, count)
+        }
+
+        check(0, 1)
+        check(50, 1)
+        check(127, 1)
+        check(128, 2)
+        check(1000, 2)
+        check(1000000, 3)
+        check(10000000, 4)
+        check(100000000, 4)
+        check(1000000000, 5)
+        check(Int.MAX_VALUE, 5)
+
+        assertThrows(IllegalStateException::class.java) {
+            check(-1, 0)
         }
     }
 
