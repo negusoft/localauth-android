@@ -1,6 +1,5 @@
 package com.negusoft.localauth.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -10,11 +9,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.negusoft.localauth.ui.login.LoginView
 import kotlinx.serialization.Serializable
 
 object Screen {
@@ -39,9 +38,7 @@ object MainNavigation {
             startDestination = Screen.LogIn
         ) {
             composable<Screen.LogIn> {
-                ButtonScreen("LogIn Screen") {
-                    navController.navigate(Screen.AccountInfo)
-                }
+                LoginView()
             }
             composable<Screen.LocalAuthentication> {
                 ButtonScreen("LocalAuthentication Screen") {
