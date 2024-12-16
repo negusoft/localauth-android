@@ -20,5 +20,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "LocalAuth"
-include(":sample")
+include(":samples:vaultmanager")
 include(":localauth")

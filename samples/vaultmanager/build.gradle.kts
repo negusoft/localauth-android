@@ -13,7 +13,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.negusoft.localauth"
+        applicationId = "com.negusoft.localauth.samples.vaultmanager"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
