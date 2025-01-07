@@ -90,7 +90,7 @@ object RSA_ECB_OAEP_Cipher {
 
     private const val ENCRYPTION_ALGORITHM = "RSA/ECB/OAEPPadding"
     /** As specified in https://developer.android.com/guide/topics/security/cryptography#oaep-mgf1-digest */
-    private val parameterSpecOAEP = OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT)
+    private val parameterSpecOAEP = OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT)
     private const val OAEP_PADDING_SIZE = 64
 
     fun encrypter(publicKey: PublicKey): Encrypter = Encrypter(publicKey)
