@@ -209,7 +209,7 @@ object LoginView {
         fun onLogin() {
             try {
                 val result = authManager.login(username, password)
-                result.registerPinCode("11111")
+                result.setupLocalAuthentication("11111")
             } catch (e: InvalidUsernameOrPasswordException) {
                 showError.value = true
             }

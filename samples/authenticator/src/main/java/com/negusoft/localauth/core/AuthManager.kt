@@ -4,7 +4,7 @@ import com.negusoft.localauth.utils.mapState
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class InvalidUsernameOrPasswordException: Exception("Invalid username or password.")
-class InvalidRefreshTokenException: Exception("Invalid username or password.")
+class InvalidRefreshTokenException: Exception("Invalid refresh token.")
 class WrongPinCodeException(val remainingAttempts: Int): Exception("Invalid PIN code.")
 class PinNotRegisteredException: Exception("No PIN code registered.")
 
@@ -16,8 +16,8 @@ class AuthManager {
         private val accessToken: AccessToken,
         private val refreshToken: RefreshToken
     ) {
-        fun registerPinCode(pinCode: String) {
-            manager.registerPinCode(pinCode, refreshToken)
+        fun setupLocalAuthentication(pinCode: String) {
+            manager.setupLocalAuthentication(pinCode, refreshToken)
         }
     }
 
@@ -26,8 +26,18 @@ class AuthManager {
     val accessToken = MutableStateFlow<AccessToken?>(null)
     val isLoggedIn = accessToken.mapState { it != null }
 
-    private var pinCodeRegistry: Pair<String, RefreshToken>? = null
-    val pinCodeRegistered: Boolean get() = pinCodeRegistry != null
+    private var localAuthenticator: LocalAuthenticator<RefreshToken>
+    val pinCodeRegistered: Boolean get() = localAuthenticator.passwordRegistered
+
+    class RefreshTokenAdapter: LocalAuthenticator.Adapter<RefreshToken> {
+        override fun encode(secret: RefreshToken): ByteArray = secret.value.toByteArray()
+        override fun decode(bytes: ByteArray): RefreshToken = RefreshToken(bytes.toString(Charsets.UTF_8))
+    }
+
+    init {
+        // TODO restore local authenticator
+        localAuthenticator = LocalAuthenticator.create(RefreshTokenAdapter())
+    }
 
     @Throws(InvalidUsernameOrPasswordException::class)
     fun login(username: String, password: String): LoginResult {
@@ -42,11 +52,7 @@ class AuthManager {
 
     @Throws(PinNotRegisteredException::class, WrongPinCodeException::class, InvalidRefreshTokenException::class)
     fun login(pinCode: String) {
-        val pinCodeRegistry = pinCodeRegistry ?: throw PinNotRegisteredException()
-        if (pinCodeRegistry.first != pinCode)
-            throw WrongPinCodeException(remainingAttempts = 1)
-
-        val refreshToken = pinCodeRegistry.second
+        val refreshToken = localAuthenticator.authenticatedSecret(pinCode)
         val authResult: RefreshAccessResult.Success = when (val authResult = authenticator.refreshAccess(refreshToken)) {
             is RefreshAccessResult.Success -> authResult
             RefreshAccessResult.InvalidRefreshToken -> throw InvalidRefreshTokenException()
@@ -54,7 +60,7 @@ class AuthManager {
 
         // Token rotation
         authResult.refreshToken?.let { newRefreshToken ->
-            this.pinCodeRegistry = pinCodeRegistry.first to newRefreshToken
+            localAuthenticator.updateSecret(newRefreshToken)
         }
 
         accessToken.value = authResult.accessToken
@@ -64,8 +70,10 @@ class AuthManager {
         accessToken.value = null
     }
 
-    fun registerPinCode(pinCode: String, refreshToken: RefreshToken) {
-        pinCodeRegistry = pinCode to refreshToken
+    fun setupLocalAuthentication(pinCode: String, refreshToken: RefreshToken) {
+        val editor = localAuthenticator.initialize(refreshToken)
+        editor.registerPassword(pinCode)
+        editor.close()
     }
 
 }
