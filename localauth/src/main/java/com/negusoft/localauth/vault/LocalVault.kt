@@ -118,9 +118,9 @@ class LocalVault private constructor(
          * The registration creates the lock from the private key bytes, it can
          * throw an exception if the registration was not possible.
          */
-        internal suspend fun <Input, Vault: VaultLock<Input>> registerLock(
-            registration: suspend (ByteArray) -> Vault
-        ): Vault {
+        internal suspend fun <Input, Lock: VaultLock<Input>> registerLock(
+            registration: suspend (ByteArray) -> Lock
+        ): Lock {
             val privateKeyBytes = privateKey.encoded
             return registration(privateKeyBytes)
         }
@@ -130,9 +130,9 @@ class LocalVault private constructor(
          * The registration creates the lock from the private key bytes, it can
          * throw an exception if the registration was not possible.
          */
-        internal fun <Input, Vault: VaultLock<Input>> registerLockSync(
-            registration: (ByteArray) -> Vault
-        ): Vault {
+        internal fun <Input, Lock: VaultLock<Input>> registerLockSync(
+            registration: (ByteArray) -> Lock
+        ): Lock {
             val privateKeyBytes = privateKey.encoded
             return registration(privateKeyBytes)
         }

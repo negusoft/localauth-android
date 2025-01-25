@@ -1,6 +1,7 @@
 package com.negusoft.localauth.core
 
 import com.negusoft.localauth.utils.mapState
+import com.negusoft.localauth.vault.lock.PinLockException
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class InvalidUsernameOrPasswordException: Exception("Invalid username or password.")
@@ -18,6 +19,16 @@ class AuthManager {
     ) {
         fun setupLocalAuthentication(pinCode: String) {
             manager.setupLocalAuthentication(pinCode, refreshToken)
+        }
+    }
+
+    class ChangePassword(
+        private val session: LocalAuthenticator<RefreshToken>.Session
+    ) {
+        fun change(newPassword: String) {
+            session.edit {
+                registerPassword(newPassword)
+            }
         }
     }
 
@@ -52,18 +63,22 @@ class AuthManager {
 
     @Throws(PinNotRegisteredException::class, WrongPinCodeException::class, InvalidRefreshTokenException::class)
     fun login(pinCode: String) {
-        val refreshToken = localAuthenticator.authenticatedSecret(pinCode)
-        val authResult: RefreshAccessResult.Success = when (val authResult = authenticator.refreshAccess(refreshToken)) {
-            is RefreshAccessResult.Success -> authResult
-            RefreshAccessResult.InvalidRefreshToken -> throw InvalidRefreshTokenException()
-        }
+        try {
+            val refreshToken = localAuthenticator.authenticatedSecret(pinCode)
+            val authResult: RefreshAccessResult.Success = when (val authResult = authenticator.refreshAccess(refreshToken)) {
+                is RefreshAccessResult.Success -> authResult
+                RefreshAccessResult.InvalidRefreshToken -> throw InvalidRefreshTokenException()
+            }
 
-        // Token rotation
-        authResult.refreshToken?.let { newRefreshToken ->
-            localAuthenticator.updateSecret(newRefreshToken)
-        }
+            // Token rotation
+            authResult.refreshToken?.let { newRefreshToken ->
+                localAuthenticator.updateSecret(newRefreshToken)
+            }
 
-        accessToken.value = authResult.accessToken
+            accessToken.value = authResult.accessToken
+        } catch (e: PinLockException) {
+            throw WrongPinCodeException(remainingAttempts = 0)
+        }
     }
 
     fun logout() {
@@ -74,6 +89,16 @@ class AuthManager {
         val editor = localAuthenticator.initialize(refreshToken)
         editor.registerPassword(pinCode)
         editor.close()
+    }
+
+    @Throws
+    fun changePassword(current: String): ChangePassword {
+        try {
+            val session = localAuthenticator.authenticate(current)
+            return ChangePassword(session)
+        } catch (e: PinLockException) {
+            throw WrongPinCodeException(remainingAttempts = 0)
+        }
     }
 
 }

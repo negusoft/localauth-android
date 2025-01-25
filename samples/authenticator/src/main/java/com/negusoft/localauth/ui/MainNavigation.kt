@@ -7,12 +7,17 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.negusoft.localauth.core.AuthManager
+import com.negusoft.localauth.ui.account.AccountView
 import com.negusoft.localauth.ui.login.LoginView
 import kotlinx.serialization.Serializable
 
@@ -31,24 +36,35 @@ object MainNavigation {
 
     @Composable
     operator fun invoke(
+        authManager: AuthManager = remember { AuthManager() },
         navController: NavHostController = rememberNavController()
     ) {
+        val isLoggedInt = authManager.isLoggedIn.collectAsState().value
+        LaunchedEffect(isLoggedInt) {
+            if (isLoggedInt) {
+                navController.navigate(Screen.AccountInfo)
+            } else {
+                navController.popBackStack(Screen.LogIn, inclusive = false)
+            }
+        }
         NavHost(
             navController = navController,
             startDestination = Screen.LogIn
         ) {
             composable<Screen.LogIn> {
-                LoginView()
+                LoginView(authManager)
             }
             composable<Screen.LocalAuthentication> {
-                ButtonScreen("LocalAuthentication Screen") {
-                    navController.navigate(Screen.AccountInfo)
-                }
+                TODO()
+//                ButtonScreen("LocalAuthentication Screen") {
+////                    navController.navigate(Screen.AccountInfo)
+//                }
             }
             composable<Screen.AccountInfo> {
-                ButtonScreen("LocalAuthentication Screen") {
-                    navController.popBackStack()
-                }
+                AccountView(authManager)
+//                ButtonScreen("LocalAuthentication Screen") {
+//                    navController.popBackStack()
+//                }
             }
         }
     }
