@@ -6,6 +6,11 @@ package com.negusoft.localauth.vault.lock
  */
 open class VaultLockException(message: String, cause: Throwable? = null): Exception(message, cause)
 
+/**
+ * TODO:
+ *  - Rename to LocalLock
+ *  - Review interface: creation definition and separate storage logic?
+ */
 interface VaultLock<Input> {
 
     /**
