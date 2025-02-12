@@ -27,7 +27,7 @@ class VaultManagerTest {
         val modifiedVault = manager.newSecretValue(vault, "key", "value")
 
         assertTrue(modifiedVault.secretValues.size == 1)
-        assertTrue(modifiedVault.pinLock != null)
+        assertTrue(modifiedVault.pinToken != null)
 
         val secretValueRef = modifiedVault.secretValues[0]
         val secretValue = modifiedVault.readValueWithPin(secretValueRef, "12345")

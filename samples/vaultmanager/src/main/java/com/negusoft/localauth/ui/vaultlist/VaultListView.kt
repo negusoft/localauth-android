@@ -208,7 +208,7 @@ private fun Preview() {
 
 object SampleData {
     val vaults = listOf(
-        VaultModel.vault("1234-1234-1234", "First", LocalVault.create{}).modify(pinLockEncoded = byteArrayOf()),
+        VaultModel.vault("1234-1234-1234", "First", LocalVault.create{}).modify(pinTokenEncoded = byteArrayOf()),
         VaultModel.vault("2345-2345-2345", "Second", LocalVault.create{}),
         VaultModel.vault("3456-3456-3456", "Third", LocalVault.create{})
     )

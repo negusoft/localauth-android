@@ -4,9 +4,7 @@ import com.negusoft.localauth.crypto.Ciphers
 import com.negusoft.localauth.crypto.Keys
 import com.negusoft.localauth.persistence.ByteCoding
 import com.negusoft.localauth.persistence.ByteCodingException
-import com.negusoft.localauth.vault.lock.VaultLock
-import com.negusoft.localauth.vault.lock.VaultLockException
-import com.negusoft.localauth.vault.lock.VaultLockSync
+import com.negusoft.localauth.vault.lock.LockException
 import java.security.PrivateKey
 import java.security.PublicKey
 
@@ -118,11 +116,9 @@ class LocalVault private constructor(
          * The registration creates the lock from the private key bytes, it can
          * throw an exception if the registration was not possible.
          */
-        internal suspend fun <Input, Lock: VaultLock<Input>> registerLock(
-            registration: suspend (ByteArray) -> Lock
-        ): Lock {
-            val privateKeyBytes = privateKey.encoded
-            return registration(privateKeyBytes)
+        @Throws(LockException::class)
+        suspend fun <Token> registerLockSuspending(locker: suspend (ByteArray) -> Token): Token {
+            return locker(privateKey.encoded)
         }
 
         /**
@@ -130,11 +126,9 @@ class LocalVault private constructor(
          * The registration creates the lock from the private key bytes, it can
          * throw an exception if the registration was not possible.
          */
-        internal fun <Input, Lock: VaultLock<Input>> registerLockSync(
-            registration: (ByteArray) -> Lock
-        ): Lock {
-            val privateKeyBytes = privateKey.encoded
-            return registration(privateKeyBytes)
+        @Throws(LockException::class)
+        internal fun <Token> registerLock(locker: (ByteArray) -> Token): Token {
+            return locker(privateKey.encoded)
         }
 
         fun close() {
@@ -148,28 +142,29 @@ class LocalVault private constructor(
      * It might throw a VaultException if an invalid key was decoded.
      */
     @Throws(LocalVaultException::class)
-    internal fun open(privateKeyBytes: ByteArray): OpenVault {
+    internal fun openSuspending(privateKeyBytes: ByteArray): OpenVault {
         val privateKey = Keys.RSA.decodePrivateKey(privateKeyBytes)
             ?: throw LocalVaultException("Failed to decode private key.")
         return OpenVault(this, privateKey)
     }
 
     /**
-     * Opens the vault with the given lock.
+     * Opens the vault with the some unlocker method.
+     * The unlocker should return the private key bytes.
      * Throws VaultLockException (or a a subclass of it) on lock failure.
      * It might throw a VaultException if an invalid key was decoded.
      */
-    @Throws(VaultLockException::class, LocalVaultException::class)
-    suspend fun <Input> open(lock: VaultLock<Input>, input: Input): OpenVault {
-        val privateKeyBytes = lock.unlock(input)
-        return open(privateKeyBytes)
+    @Throws(LockException::class, LocalVaultException::class)
+    suspend fun openSuspending(unlocker: suspend () -> ByteArray): OpenVault {
+        val privateKeyBytes = unlocker()
+        return openSuspending(privateKeyBytes)
     }
 
-    /** Synchronous version of open(). */
-    @Throws(VaultLockException::class, LocalVaultException::class)
-    fun <Input> openSync(lock: VaultLockSync<Input>, input: Input): OpenVault {
-        val privateKeyBytes = lock.unlockSync(input)
-        return open(privateKeyBytes)
+    /** Synchronous version of openSuspending(). */
+    @Throws(LockException::class, LocalVaultException::class)
+    fun open(unlocker: () -> ByteArray): OpenVault {
+        val privateKeyBytes = unlocker()
+        return openSuspending(privateKeyBytes)
     }
 
     /** Encrypt the given value with the public key and store it. */

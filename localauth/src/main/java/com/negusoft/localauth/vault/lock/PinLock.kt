@@ -15,103 +15,84 @@ import com.negusoft.localauth.persistence.readStringProperty
 import com.negusoft.localauth.persistence.writeProperty
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.vault.LocalVault.OpenVault
-import java.io.IOException
 import javax.crypto.SecretKey
 
 open class PinLockException(message: String, cause: Throwable? = null)
-    : VaultLockException(message, cause)
+    : LockException(message, cause)
 class WrongPinException : PinLockException("Wrong PIN code.")
 
-class PinLock(
-    val keystoreAlias: String,
-    private val encryptedSecret: ByteArray
-): VaultLock<PinLock.Input>, VaultLockSync<PinLock.Input> {
+class PinLock private constructor(
+    val keystoreAlias: String
+) {
+    data class Token(
+        val keystoreAlias: String,
+        val encryptedSecret: ByteArray
+    ) {
+        companion object {
+            private const val ENCODING_VERSION: Byte = 0x00
 
-    @JvmInline
-    value class Input(val value: String)
+            /**
+             * Restore the token from the data produced by 'encode()'.
+             * @throws PinLockException on failure.
+             */
+            @Throws(PinLockException::class)
+            fun restore(encoded: ByteArray): Token {
+                val decoder = ByteCoding.decode(encoded)
+                if (!decoder.checkValueEquals(byteArrayOf(ENCODING_VERSION))) {
+                    throw PinLockException("Wrong encoding version (${encoded[0]}).")
+                }
+                val alias = decoder.readStringProperty() ?: throw PinLockException("Failed to decode 'alias'.")
+                val encryptedSecret = decoder.readFinal()
+                return Token(alias, encryptedSecret)
+            }
+
+        }
+        val lock: PinLock get() = PinLock(keystoreAlias)
+
+        /** Encode the token to bytes. */
+        fun encode(): ByteArray {
+            return ByteCoding.encode(prefix = byteArrayOf(ENCODING_VERSION)) {
+                writeProperty(keystoreAlias)
+                writeValue(encryptedSecret)
+            }
+        }
+    }
 
     companion object {
-        private const val ENCODING_VERSION: Byte = 0x00
 
-        private fun keySpec(alias: String, strongBoxBacked: Boolean) =
-            KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                .setAES_GCM_NoPadding()
-                .setStrongBoxBacked(strongBoxBacked)
-                .build()
-
-        @Throws(PinLockException::class)
-        internal fun register(
-            keystoreAlias: String,
-            privateKeyEncoded: ByteArray,
-            pin: String,
-            useStrongBoxWhenAvailable: Boolean = true
-        ): PinLock {
+        fun create(keystoreAlias: String, useStrongBoxWhenAvailable: Boolean = true): PinLock {
             try {
-                val privateKeyPasswordEncrypted = Ciphers.AES_GCM_NoPadding.encryptWithPassword(pin, privateKeyEncoded)
-                val key = createKey(keystoreAlias, useStrongBoxWhenAvailable)
-                val encryptedData = Ciphers.AES_GCM_NoPadding.encrypter(key).encrypt(privateKeyPasswordEncrypted)
-                return PinLock(keystoreAlias, encryptedData)
+                createKey(keystoreAlias, useStrongBoxWhenAvailable)
+                return PinLock(keystoreAlias)
             } catch (t: Throwable) {
-                throw PinLockException("Failed to create PIN lock.", t)
+                throw LockException("Failed to create PIN lock.", t)
             }
         }
 
-        /**
-         * Create StrongBox backed key. Fall back to non StrongBox backed key.
-         */
-        private fun createKey(keystoreAlias: String, useStrongBox: Boolean): SecretKey {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || !useStrongBox) {
-                val spec = keySpec(keystoreAlias, false)
-                return AndroidKeyStore().generateSecretKey(spec)
-            }
-            try {
-                val spec = keySpec(keystoreAlias, true)
-                return AndroidKeyStore().generateSecretKey(spec)
-            } catch (e: StrongBoxUnavailableException) {
-                val spec = keySpec(keystoreAlias, false)
-                return AndroidKeyStore().generateSecretKey(spec)
-            }
-        }
-
-        /**
-         * Restore the lock from the data produced by 'encode()'.
-         * @throws PinLockException on failure.
-         */
-        @Throws(PinLockException::class)
-        fun restore(encoded: ByteArray): PinLock {
-            val decoder = ByteCoding.decode(encoded)
-            if (!decoder.checkValueEquals(byteArrayOf(ENCODING_VERSION))) {
-                throw PinLockException("Wrong encoding version (${encoded[0]}).")
-            }
-            val alias = decoder.readStringProperty() ?: throw PinLockException("Failed to decode 'alias'.")
-            val encryptedSecret = decoder.readFinal()
-            return PinLock(alias, encryptedSecret)
-        }
+        fun restore(keystoreAlias: String) = PinLock(keystoreAlias)
+        fun restore(token: Token) = PinLock(token.keystoreAlias)
     }
 
-    /** Encode the pin lock to bytes. */
-    fun encode(): ByteArray {
-        return ByteCoding.encode(prefix = byteArrayOf(ENCODING_VERSION)) {
-            writeProperty(keystoreAlias)
-            writeValue(encryptedSecret)
-        }
-    }
 
-    /**
-     * Returns the secret on success.
-     */
-    @Throws(PinLockException::class)
-    override suspend fun unlock(input: Input): ByteArray
-        = unlockSync(input)
-
-    /**
-     * Returns the secret on success.
-     */
-    override fun unlockSync(input: Input): ByteArray {
+    fun lock(secret: ByteArray, password: String): Token {
         try {
             val key = AndroidKeyStore().getSecretKey(keystoreAlias)
-            val encryptedSecret = Ciphers.AES_GCM_NoPadding.decrypter(key, encryptedSecret).decrypt(encryptedSecret)
-            val privateKeyBytes = Ciphers.AES_GCM_NoPadding.decryptWithPassword(input.value, encryptedSecret)
+            val secretPasswordEncrypted = Ciphers.AES_GCM_NoPadding.encryptWithPassword(password, secret)
+            val encryptedSecret = Ciphers.AES_GCM_NoPadding.encrypter(key).encrypt(secretPasswordEncrypted)
+            return Token(keystoreAlias, encryptedSecret)
+        } catch (t: Throwable) {
+            throw PinLockException("Failed to lock secret with PIN lock.", t)
+        }
+    }
+
+    fun unlock(token: Token, password: String): ByteArray {
+        try {
+            val key = AndroidKeyStore().getSecretKey(keystoreAlias)
+            val secretPasswordEncrypted = Ciphers.AES_GCM_NoPadding
+                .decrypter(key, token.encryptedSecret)
+                .decrypt(token.encryptedSecret)
+            val privateKeyBytes = Ciphers.AES_GCM_NoPadding
+                .decryptWithPassword(password, secretPasswordEncrypted)
                 ?: throw WrongPinException()
             return privateKeyBytes
         } catch (t: Throwable) {
@@ -120,18 +101,42 @@ class PinLock(
     }
 }
 
+
+/**
+ * Create StrongBox backed key. Fall back to non StrongBox backed key.
+ */
+private fun createKey(keystoreAlias: String, useStrongBox: Boolean): SecretKey {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || !useStrongBox) {
+        val spec = keySpec(keystoreAlias, false)
+        return AndroidKeyStore().generateSecretKey(spec)
+    }
+    try {
+        val spec = keySpec(keystoreAlias, true)
+        return AndroidKeyStore().generateSecretKey(spec)
+    } catch (e: StrongBoxUnavailableException) {
+        val spec = keySpec(keystoreAlias, false)
+        return AndroidKeyStore().generateSecretKey(spec)
+    }
+}
+
+private fun keySpec(alias: String, strongBoxBacked: Boolean) =
+    KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+        .setAES_GCM_NoPadding()
+        .setStrongBoxBacked(strongBoxBacked)
+        .build()
+
 /**
  * Opens the vault with the given lock.
  * Throws VaultLockException (or a a subclass of it) on lock failure.
  * It might throw a VaultException if an invalid key was decoded.
  */
-fun LocalVault.open(lock: PinLock, pin: String): OpenVault {
-    return openSync(lock, PinLock.Input(pin))
+fun LocalVault.open(token: PinLock.Token, password: String) = open {
+    val lock = PinLock.restore(token)
+    lock.unlock(token, password)
 }
-fun OpenVault.registerPinLock(id: String, pin: String): PinLock = registerLockSync { privateKeyEncoded ->
-    PinLock.register(
-        keystoreAlias = id,
-        privateKeyEncoded = privateKeyEncoded,
-        pin = pin
-    )
+fun OpenVault.registerPinLock(
+    password: String, keystoreAlias: String, useStrongBoxWhenAvailable: Boolean = true
+): PinLock.Token = registerLock { privateKeyEncoded ->
+    val lock = PinLock.create(keystoreAlias, useStrongBoxWhenAvailable)
+    lock.lock(privateKeyEncoded, password)
 }

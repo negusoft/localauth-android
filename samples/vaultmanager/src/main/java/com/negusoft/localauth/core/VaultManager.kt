@@ -53,11 +53,11 @@ class VaultManager(
     @Deprecated("Use the createVault function instead")
     fun createVault(name: String, password: String): VaultModel {
         val lockId = "$name.pin"
-        lateinit var pinLock: PinLock
+        lateinit var token: PinLock.Token
         val vault = LocalVault.create { vault ->
-            pinLock = vault.registerPinLock(lockId, password)
+            token = vault.registerPinLock(password, lockId)
         }
-        return VaultModel.vault(name, name, vault, pinLock).also {
+        return VaultModel.vault(name, name, vault, token).also {
             save(it)
         }
     }
@@ -114,14 +114,14 @@ class VaultModel private constructor(
     val id: String,
     val name: String,
     val encoded: ByteArray,
-    private val pinLockEncoded: ByteArray? = null,
-    private val biometricLockEncoded: ByteArray? = null,
+    private val pinTokenEncoded: ByteArray? = null,
+    private val biometricTokenEncoded: ByteArray? = null,
     val secretValues: List<SecretValueModel> = listOf(),
     @Transient private var _vault: LocalVault? = null
 ) {
     companion object {
-        fun vault(id: String, name: String, vault: LocalVault, pinLock: PinLock? = null) =
-            VaultModel(id, name, vault.encode(), pinLock?.encode(), _vault = vault)
+        fun vault(id: String, name: String, vault: LocalVault, pinToken: PinLock.Token? = null) =
+            VaultModel(id, name, vault.encode(), pinToken?.encode(), _vault = vault)
     }
 
     val vault: LocalVault get() {
@@ -131,11 +131,11 @@ class VaultModel private constructor(
         }
     }
 
-    val pinLockEnabled get() = pinLockEncoded != null
-    val pinLock: PinLock? by lazy { pinLockEncoded?.let { PinLock.restore(it) } }
+    val pinLockEnabled get() = pinTokenEncoded != null
+    val pinToken: PinLock.Token? by lazy { pinTokenEncoded?.let { PinLock.Token.restore(it) } }
 
-    val biometricLockEnabled get() = biometricLockEncoded != null
-    val biometricLock: BiometricLock? by lazy { biometricLockEncoded?.let { BiometricLock.restore(it) } }
+    val biometricLockEnabled get() = biometricTokenEncoded != null
+    val biometricToken: BiometricLock.Token? by lazy { biometricTokenEncoded?.let { BiometricLock.Token.restore(it) } }
 
     fun readValueWithPin(value: SecretValueModel, pin: String): String {
         val openVault = open(pin)
@@ -145,23 +145,23 @@ class VaultModel private constructor(
     }
 
     fun open(pin: String): OpenVaultModel {
-        val pinLock = pinLock ?: throw IllegalStateException("No pin lock")
-        val openVault = vault.open(pinLock, pin)
+        val pinToken = pinToken ?: throw IllegalStateException("No pin lock")
+        val openVault = vault.open(pinToken, pin)
         return OpenVaultModel(this, openVault)
     }
 
     suspend fun openBiometric(activity: FragmentActivity): OpenVaultModel {
-        val biometricLock = biometricLock ?: throw IllegalStateException("No biometric lock")
-        val openVault = vault.open(activity, biometricLock)
+        val biometricToken = biometricToken ?: throw IllegalStateException("No biometric lock")
+        val openVault = vault.open(biometricToken, activity)
         return OpenVaultModel(this, openVault)
     }
 
     fun modify(
         name: String = this.name,
-        pinLockEncoded: ByteArray? = this.pinLockEncoded,
-        biometricLockEncoded: ByteArray? = this.biometricLockEncoded,
+        pinTokenEncoded: ByteArray? = this.pinTokenEncoded,
+        biometricTokenEncoded: ByteArray? = this.biometricTokenEncoded,
         values: List<SecretValueModel> = this.secretValues
-    ) = VaultModel(id, name, encoded, pinLockEncoded, biometricLockEncoded, values, _vault)
+    ) = VaultModel(id, name, encoded, pinTokenEncoded, biometricTokenEncoded, values, _vault)
 
     val hasAnyVaults: Boolean get() = pinLockEnabled || biometricLockEnabled
 }
@@ -180,22 +180,22 @@ class OpenVaultModel(
 
     fun registerPinLock(password: String) {
         val id = "${vault.id}_pin_lock"
-        val lock =  openVault.registerPinLock(id, password)
-        vault = vault.modify(pinLockEncoded = lock.encode())
+        val lock =  openVault.registerPinLock(password, id)
+        vault = vault.modify(pinTokenEncoded = lock.encode())
     }
 
     fun removePinLock() {
-        vault = vault.modify(pinLockEncoded = null)
+        vault = vault.modify(pinTokenEncoded = null)
     }
 
     fun registerBiometricLock() {
         val id = "${vault.id}_biometric_lock"
-        val lock =  openVault.registerBiometricLock(id)
-        vault = vault.modify(biometricLockEncoded = lock.encode())
+        val token = openVault.registerBiometricLock(id)
+        vault = vault.modify(biometricTokenEncoded = token.encode())
     }
 
     fun removeBiometricLock() {
-        vault = vault.modify(biometricLockEncoded = null)
+        vault = vault.modify(biometricTokenEncoded = null)
     }
 
     fun close() {

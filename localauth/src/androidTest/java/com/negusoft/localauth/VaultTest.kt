@@ -1,25 +1,24 @@
 package com.negusoft.localauth
 
 import android.content.Context
-import android.security.KeyStoreException
 import androidx.core.content.edit
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.negusoft.localauth.vault.LocalVault
-import com.negusoft.localauth.vault.lock.BiometricLock
 import com.negusoft.localauth.vault.lock.BiometricLockException
-import com.negusoft.localauth.vault.lock.PinLock
+import com.negusoft.localauth.vault.lock.BiometricLock
 import com.negusoft.localauth.vault.lock.PinLockException
+import com.negusoft.localauth.vault.lock.PinLock
 import com.negusoft.localauth.vault.lock.open
 import com.negusoft.localauth.vault.lock.registerBiometricLock
 import com.negusoft.localauth.vault.lock.registerPinLock
 import kotlinx.coroutines.runBlocking
-
+import org.junit.Assert.assertThrows
+import org.junit.Assert.fail
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-
-import org.junit.Assert.*
-import org.junit.Before
+import javax.crypto.Cipher
 import javax.crypto.IllegalBlockSizeException
 
 /**
@@ -38,10 +37,9 @@ class VaultTest {
 
     @Test
     fun createEncryptDecrypt() {
-        lateinit var encodedPinLock: ByteArray
+        lateinit var pinLockToken: PinLock.Token
         val vault = LocalVault.create { openVault ->
-            val pinLock = openVault.registerPinLock("lockId", "12345")
-            encodedPinLock = pinLock.encode()
+            pinLockToken = openVault.registerPinLock("12345", "lockId")
         }
 
         val encoded = vault.encode()
@@ -50,8 +48,7 @@ class VaultTest {
         val secret = "Hello, Vault!".toByteArray()
         val encryptedSecret = restored.encrypt(secret)
 
-        val pinLock = PinLock.restore(encodedPinLock)
-        val openVault = restored.open(pinLock, "12345")
+        val openVault = restored.open(pinLockToken, "12345")
         val decryptedSecret = openVault.decrypt(encryptedSecret)
 
         assert(decryptedSecret.contentEquals("Hello, Vault!".toByteArray()))
@@ -59,29 +56,29 @@ class VaultTest {
 
     @Test
     fun testPinLock() {
-        lateinit var pinLock: PinLock
+        lateinit var pinLockToken: PinLock.Token
         val vault = LocalVault.create { openVault ->
-            pinLock = openVault.registerPinLock("lockId", "12345")
+            pinLockToken = openVault.registerPinLock("12345", "lockId")
         }
 
         assertThrows(PinLockException::class.java) {
-            vault.open(pinLock, "wrong")
+            vault.open(pinLockToken, "wrong")
         }
 
-        vault.open(pinLock, "12345")
+        vault.open(pinLockToken, "12345")
     }
 
     @Test
     fun testBiometricLock() {
-        lateinit var biometricLock: BiometricLock
+        lateinit var biometricLockToken: BiometricLock.Token
         val vault = LocalVault.create { openVault ->
-            biometricLock = openVault.registerBiometricLock("lockId")
+            biometricLockToken = openVault.registerBiometricLock("lockId")
         }
 
         // The lock should fail if not authenticated with BiometricPrompt
         runBlocking {
             try {
-                biometricLock.unlock { it }
+                vault.open(biometricLockToken) { c: Cipher -> c }
                 fail("Should have thrown")
             } catch (e: BiometricLockException) {
                 assert(e.reason == BiometricLockException.Reason.ERROR)

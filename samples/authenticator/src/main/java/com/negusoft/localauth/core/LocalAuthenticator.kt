@@ -5,9 +5,8 @@ import com.negusoft.localauth.persistence.readStringProperty
 import com.negusoft.localauth.persistence.writeProperty
 import com.negusoft.localauth.vault.EncryptedValue
 import com.negusoft.localauth.vault.LocalVault
-import com.negusoft.localauth.vault.lock.PinLock
-import com.negusoft.localauth.vault.lock.PinLock.Companion
 import com.negusoft.localauth.vault.lock.PinLockException
+import com.negusoft.localauth.vault.lock.PinLock
 import com.negusoft.localauth.vault.lock.open
 import com.negusoft.localauth.vault.lock.registerPinLock
 
@@ -65,7 +64,7 @@ class LocalAuthenticator<Secret> private constructor(
             val state = State(
                 vault = decoder.readProperty()?.let { LocalVault.restore(it) } ?: throw Exception("Failed to decode vault."),
                 secretEncrypted = decoder.readProperty(),
-                passwordLock = decoder.readProperty()
+                passwordToken = decoder.readProperty()
             )
 
             return LocalAuthenticator(state, id, adapter)
@@ -75,7 +74,7 @@ class LocalAuthenticator<Secret> private constructor(
     data class State(
         val vault: LocalVault? = null,
         val secretEncrypted: ByteArray? = null,
-        val passwordLock: ByteArray? = null,
+        val passwordToken: ByteArray? = null,
     )
 
     inner class Editor(
@@ -83,10 +82,11 @@ class LocalAuthenticator<Secret> private constructor(
         private val openVault: LocalVault.OpenVault
     ) {
         fun registerPassword(password: String) {
-            val lock = openVault.registerPinLock("${authenticator.id}_password", password)
+            val token = openVault.registerPinLock(password, "${authenticator.id}_password")
+//            val lock = openVault.registerPinLock("${authenticator.id}_password", password)
             authenticator.state = authenticator.state.copy(
                 vault = openVault.vault,
-                passwordLock = lock.encode()
+                passwordToken = token.encode()
             )
         }
 
@@ -122,7 +122,7 @@ class LocalAuthenticator<Secret> private constructor(
     var state = state
         private set
 
-    val passwordRegistered: Boolean get() = state.passwordLock != null
+    val passwordRegistered: Boolean get() = state.passwordToken != null
 
     /**
      * Set up the local authentication session and store the secret. The current session will
@@ -150,15 +150,15 @@ class LocalAuthenticator<Secret> private constructor(
 
     fun editWithPassword(password: String): Editor {
         val vault = state.vault ?: throw Exception("Local Authenticator not initialized")
-        val pinLockBytes = state.passwordLock ?: throw Exception("Password not registered.")
-        val pinLock = PinLock.restore(pinLockBytes)
-        val openVault = vault.open(pinLock, password)
+        val pinTokenBytes = state.passwordToken ?: throw Exception("Password not registered.")
+        val pinToken = PinLock.Token.restore(pinTokenBytes)
+        val openVault = vault.open(pinToken, password)
         return Editor(this, openVault)
     }
 
     fun unregisterPassword() {
         // TODO destroy key from keystore
-        state = state.copy(passwordLock = null)
+        state = state.copy(passwordToken = null)
     }
 
     @Throws
@@ -170,9 +170,9 @@ class LocalAuthenticator<Secret> private constructor(
     @Throws
     fun authenticate(password: String): Session {
         val vault = state.vault ?: throw Exception("Local Authenticator not initialized")
-        val passwordLockBytes = state.passwordLock ?: throw Exception("Password not registered.")
-        val pinLock = PinLock.restore(passwordLockBytes)
-        val openVault = vault.open(pinLock, password)
+        val passwordLockBytes = state.passwordToken ?: throw Exception("Password not registered.")
+        val pinToken = PinLock.Token.restore(passwordLockBytes)
+        val openVault = vault.open(pinToken, password)
         return Session(this, openVault)
     }
 
@@ -195,7 +195,7 @@ class LocalAuthenticator<Secret> private constructor(
             writeProperty(id)
             writeProperty(state.vault?.encode())
             writeProperty(state.secretEncrypted)
-            writeProperty(state.passwordLock)
+            writeProperty(state.passwordToken)
         }
     }
 
