@@ -52,7 +52,17 @@ interface EncoderContext {
     fun writeProperty(property: ByteArray?)
     /** Add a the value bytes directly. Use when the property's length is always the same. */
     fun writeValue(value: ByteArray)
+    /** Add list of properties. It will write the size followed by each property. */
+    fun writePropertyList(propertyList: List<ByteArray>)
 }
+
+/** Writes the the map as a list by alternating Key and Value properties. */
+fun <K> EncoderContext.writePropertyMap(map: Map<K, ByteArray>, keyMapping: (K) -> ByteArray) {
+    val list = map.flatMap { listOf(keyMapping(it.key), it.value) }
+    writePropertyList(list)
+}
+/** Writes the the map as a list by alternating Key and Value properties. */
+fun EncoderContext.writePropertyMap(map: Map<String, ByteArray>) = writePropertyMap(map) { it.toByteArray() }
 
 /**
  * Encode/decode the size such that.
@@ -126,6 +136,15 @@ class ByteEncoder(
         components.add(value)
     }
 
+    /** Writes the the map as a list by alternating Key and Value properties. */
+    override fun writePropertyList(propertyList: List<ByteArray>) {
+        val sizeBytes = sizeCoder.encodeSize(propertyList.size)
+        components.add(sizeBytes)
+        propertyList.forEach {
+            writeProperty(it)
+        }
+    }
+
     fun encode(): ByteArray {
         val prefixSize = prefix?.size ?: 0
         val resultSize = components.fold(prefixSize) { acc, component -> acc + component.size}
@@ -153,6 +172,32 @@ class ByteDecoder(val bytes: ByteArray, startIndex: Int) {
         if (size == 0) return null
         return readBytes(size)
     }
+
+    /** Read a list of properties. Fires read the size, then read the properties in a loop. */
+    @Throws(ByteCodingException::class)
+    fun readPropertyList(): List<ByteArray> {
+        val size = readSize()
+        return List(size) { readProperty() ?: byteArrayOf() }
+    }
+
+    /** Read a map property. It returns empty map for 0 length properties. */
+    @Throws(ByteCodingException::class)
+    fun <K> readPropertyMap(keyMapping: (ByteArray) -> K): Map<K, ByteArray> {
+        val list = readPropertyList()
+        val size = list.size / 2
+
+        val iterator = list.iterator()
+        val result = hashMapOf<K, ByteArray>()
+        for (i in 0 until size) {
+            val key = keyMapping(iterator.next())
+            result[key] = iterator.next()
+        }
+        return result
+    }
+
+    /** Read a map property. It returns empty map for 0 length properties. */
+    @Throws(ByteCodingException::class)
+    fun readPropertyMap(): Map<String, ByteArray> = readPropertyMap { it.decodeToString() }
 
     /** Read the number of bytes specified. */
     @Throws(ByteCodingException::class)

@@ -9,7 +9,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class LocalAuthenticatorTest {
+class LocalAuthenticatorOldTest {
     private val adapter = object : LocalAuthenticator.Adapter<String> {
         override fun encode(secret: String): ByteArray = secret.toByteArray()
         override fun decode(bytes: ByteArray): String = bytes.toString(Charsets.UTF_8)

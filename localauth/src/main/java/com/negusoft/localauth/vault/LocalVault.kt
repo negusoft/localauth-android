@@ -5,6 +5,8 @@ import com.negusoft.localauth.crypto.Keys
 import com.negusoft.localauth.persistence.ByteCoding
 import com.negusoft.localauth.persistence.ByteCodingException
 import com.negusoft.localauth.vault.lock.LockException
+import com.negusoft.localauth.vault.lock.LockProtected
+import com.negusoft.localauth.vault.lock.LockRegister
 import java.security.PrivateKey
 import java.security.PublicKey
 
@@ -43,7 +45,7 @@ class LocalVaultException(message: String, cause: Throwable? = null): Exception(
 
 class LocalVault private constructor(
     val publicKey: PublicKey
-) {
+): LockProtected {
     companion object {
         private const val ENCODING_VERSION: Byte = 0x00
 
@@ -88,7 +90,7 @@ class LocalVault private constructor(
     class OpenVault(
         val vault: LocalVault,
         internal val privateKey: PrivateKey
-    ) {
+    ): LockRegister {
         @Throws(LocalVaultException::class)
         fun decrypt(encrypted: EncryptedValue): ByteArray {
             try {
@@ -117,7 +119,7 @@ class LocalVault private constructor(
          * throw an exception if the registration was not possible.
          */
         @Throws(LockException::class)
-        suspend fun <Token> registerLockSuspending(locker: suspend (ByteArray) -> Token): Token {
+        override suspend fun <Token> registerLockSuspending(locker: suspend (ByteArray) -> Token): Token {
             return locker(privateKey.encoded)
         }
 
@@ -127,7 +129,7 @@ class LocalVault private constructor(
          * throw an exception if the registration was not possible.
          */
         @Throws(LockException::class)
-        internal fun <Token> registerLock(locker: (ByteArray) -> Token): Token {
+        override fun <Token> registerLock(locker: (ByteArray) -> Token): Token {
             return locker(privateKey.encoded)
         }
 
@@ -155,14 +157,14 @@ class LocalVault private constructor(
      * It might throw a VaultException if an invalid key was decoded.
      */
     @Throws(LockException::class, LocalVaultException::class)
-    suspend fun openSuspending(unlocker: suspend () -> ByteArray): OpenVault {
+    override suspend fun openSuspending(unlocker: suspend () -> ByteArray): OpenVault {
         val privateKeyBytes = unlocker()
         return openSuspending(privateKeyBytes)
     }
 
     /** Synchronous version of openSuspending(). */
     @Throws(LockException::class, LocalVaultException::class)
-    fun open(unlocker: () -> ByteArray): OpenVault {
+    override fun open(unlocker: () -> ByteArray): OpenVault {
         val privateKeyBytes = unlocker()
         return openSuspending(privateKeyBytes)
     }

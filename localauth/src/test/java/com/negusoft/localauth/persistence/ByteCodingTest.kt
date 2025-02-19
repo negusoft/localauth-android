@@ -12,7 +12,7 @@ class ByteCodingTest {
     private val sample3 = byteArrayOf(0x31, 0x32, 0x33)
 
     @Test
-    fun encode() {
+    fun encodeBasics() {
         val encoded = ByteCoding.encode(prefix = sample0) {
             writeValue(sample1)
             writeProperty(sample2)
@@ -22,7 +22,7 @@ class ByteCodingTest {
     }
 
     @Test
-    fun decode() {
+    fun decodeBasics() {
         val encoded = byteArrayOf(*sample0, *sample1, 0x03, *sample2, *sample3)
 
         val decoder = ByteCoding.decode(encoded)
@@ -37,6 +37,51 @@ class ByteCodingTest {
         }
         decoder.readFinal().let { value ->
             assertTrue(value.contentEquals(sample3))
+        }
+    }
+
+    @Test
+    fun encodeList() {
+        val list = listOf(sample0, sample1, sample2, sample3)
+        val encoded = ByteCoding.encode {
+            writePropertyList(list)
+        }
+        assertTrue(encoded.contentEquals(byteArrayOf(0x04, 0x03, *sample0, 0x03, *sample1, 0x03, *sample2, 0x03, *sample3)))
+    }
+
+    @Test
+    fun decodeList() {
+        val encoded = byteArrayOf(0x04, 0x03, *sample0, 0x03, *sample1, 0x03, *sample2, 0x03, *sample3)
+
+        val decoder = ByteCoding.decode(encoded)
+        decoder.readPropertyList().let { list ->
+            assertEquals(list.size, 4)
+            listOf(sample0, sample1, sample2, sample3).forEachIndexed { index, bytes ->
+                assertTrue(list[index].contentEquals(bytes))
+            }
+        }
+    }
+
+    @Test
+    fun encodeMap() {
+        val map = mapOf(
+            sample0.decodeToString() to sample1,
+            sample2.decodeToString() to sample3
+        )
+        val encoded = ByteCoding.encode {
+            writePropertyMap(map)
+        }
+        assertTrue(encoded.contentEquals(byteArrayOf(0x04, 0x03, *sample0, 0x03, *sample1, 0x03, *sample2, 0x03, *sample3)))
+    }
+
+    @Test
+    fun decodeMap() {
+        val encoded = byteArrayOf(0x04, 0x03, *sample0, 0x03, *sample1, 0x03, *sample2, 0x03, *sample3)
+
+        ByteCoding.decode(encoded).readPropertyMap().let { map ->
+            assertEquals(map.size, 2)
+            assertTrue(map[sample0.decodeToString()].contentEquals(sample1))
+            assertTrue(map[sample2.decodeToString()].contentEquals(sample3))
         }
     }
 

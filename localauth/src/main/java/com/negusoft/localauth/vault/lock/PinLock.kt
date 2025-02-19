@@ -130,11 +130,12 @@ private fun keySpec(alias: String, strongBoxBacked: Boolean) =
  * Throws VaultLockException (or a a subclass of it) on lock failure.
  * It might throw a VaultException if an invalid key was decoded.
  */
-fun LocalVault.open(token: PinLock.Token, password: String) = open {
+fun LockProtected.open(token: PinLock.Token, password: String) = open {
     val lock = PinLock.restore(token)
     lock.unlock(token, password)
 }
-fun OpenVault.registerPinLock(
+//fun OpenVault.registerPinLock(
+fun LockRegister.registerPinLock(
     password: String, keystoreAlias: String, useStrongBoxWhenAvailable: Boolean = true
 ): PinLock.Token = registerLock { privateKeyEncoded ->
     val lock = PinLock.create(keystoreAlias, useStrongBoxWhenAvailable)
