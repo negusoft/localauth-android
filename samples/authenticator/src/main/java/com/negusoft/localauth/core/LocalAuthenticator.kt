@@ -19,7 +19,8 @@ import com.negusoft.localauth.vault.lock.registerPinLock
  *  - No State as separate class
  *  - Generic secret vs ByteArray???
  */
-class LocalAuthenticator<Secret> private constructor(
+@Deprecated("Use new LocalAuthenticator")
+class LocalAuthenticator2<Secret> private constructor(
     state: State,
     val id: String = "local_authenticator",
     private val adapter: Adapter<Secret>
@@ -31,8 +32,8 @@ class LocalAuthenticator<Secret> private constructor(
 
         fun <Secret> create(
             adapter: Adapter<Secret>
-        ): LocalAuthenticator<Secret> {
-            return LocalAuthenticator(
+        ): LocalAuthenticator2<Secret> {
+            return LocalAuthenticator2(
                 state = State(),
                 adapter = adapter
             )
@@ -40,9 +41,9 @@ class LocalAuthenticator<Secret> private constructor(
 
         fun <Secret> createOld(
             adapter: Adapter<Secret>
-        ): LocalAuthenticator<Secret>.Editor {
+        ): LocalAuthenticator2<Secret>.Editor {
             val openVault = LocalVault.create()
-            val authenticator = LocalAuthenticator(
+            val authenticator = LocalAuthenticator2(
                 state = State(openVault.vault),
                 adapter = adapter
             )
@@ -55,7 +56,7 @@ class LocalAuthenticator<Secret> private constructor(
         fun <Secret> restore(
             encoded: ByteArray,
             adapter: Adapter<Secret>
-        ): LocalAuthenticator<Secret> {
+        ): LocalAuthenticator2<Secret> {
             val decoder = ByteCoding.decode(encoded)
             if (!decoder.checkValueEquals(byteArrayOf(ENCODING_VERSION))) {
                 throw PinLockException("Wrong encoding version (${encoded[0]}).")
@@ -67,7 +68,7 @@ class LocalAuthenticator<Secret> private constructor(
                 passwordToken = decoder.readProperty()
             )
 
-            return LocalAuthenticator(state, id, adapter)
+            return LocalAuthenticator2(state, id, adapter)
         }
     }
 
@@ -78,7 +79,7 @@ class LocalAuthenticator<Secret> private constructor(
     )
 
     inner class Editor(
-        val authenticator: LocalAuthenticator<Secret>,
+        val authenticator: LocalAuthenticator2<Secret>,
         private val openVault: LocalVault.OpenVault
     ) {
         fun registerPassword(password: String) {
@@ -96,7 +97,7 @@ class LocalAuthenticator<Secret> private constructor(
     }
 
     inner class Session(
-        val authenticator: LocalAuthenticator<Secret>,
+        val authenticator: LocalAuthenticator2<Secret>,
         private val openVault: LocalVault.OpenVault
     ) {
         fun secret(): Secret {

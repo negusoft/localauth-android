@@ -26,9 +26,6 @@ object Screen {
     object LogIn
 
     @Serializable
-    object LocalAuthentication
-
-    @Serializable
     object AccountInfo
 }
 
@@ -36,14 +33,12 @@ object MainNavigation {
 
     @Composable
     operator fun invoke(
-        authManager: AuthManager = remember { AuthManager() },
+        authManager: AuthManager,
         navController: NavHostController = rememberNavController()
     ) {
-        val isLoggedInt = authManager.isLoggedIn.collectAsState().value
-        LaunchedEffect(isLoggedInt) {
-            if (isLoggedInt) {
-                navController.navigate(Screen.AccountInfo)
-            } else {
+        val isLoggedIn = authManager.isLoggedIn.collectAsState().value
+        LaunchedEffect(isLoggedIn) {
+            if (!isLoggedIn) {
                 navController.popBackStack(Screen.LogIn, inclusive = false)
             }
         }
@@ -52,13 +47,9 @@ object MainNavigation {
             startDestination = Screen.LogIn
         ) {
             composable<Screen.LogIn> {
-                LoginView(authManager)
-            }
-            composable<Screen.LocalAuthentication> {
-                TODO()
-//                ButtonScreen("LocalAuthentication Screen") {
-////                    navController.navigate(Screen.AccountInfo)
-//                }
+                LoginView(authManager) {
+                    navController.navigate(Screen.AccountInfo)
+                }
             }
             composable<Screen.AccountInfo> {
                 AccountView(authManager)

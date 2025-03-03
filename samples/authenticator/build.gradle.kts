@@ -69,7 +69,8 @@ dependencies {
     runtimeOnly(libs.androidx.material.icons.extended)
     implementation(libs.navigation.compose)
 
-    implementation("com.medallia:digital-android-sdk:4.6.1")
+
+    implementation(libs.androidx.material.icons.extended)
 
     // Dependency Injection
     implementation(libs.koin.androidx.compose.navigation)

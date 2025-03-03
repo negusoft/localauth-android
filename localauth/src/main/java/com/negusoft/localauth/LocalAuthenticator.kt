@@ -1,5 +1,6 @@
 package com.negusoft.localauth
 
+import androidx.fragment.app.FragmentActivity
 import com.negusoft.localauth.LocalAuthenticator.Editor
 import com.negusoft.localauth.LocalAuthenticator.Session
 import com.negusoft.localauth.LocalAuthenticator.Unlockers
@@ -10,11 +11,14 @@ import com.negusoft.localauth.persistence.writeProperty
 import com.negusoft.localauth.persistence.writePropertyMap
 import com.negusoft.localauth.vault.EncryptedValue
 import com.negusoft.localauth.vault.LocalVault
+import com.negusoft.localauth.vault.lock.BiometricLock
 import com.negusoft.localauth.vault.lock.LockProtected
 import com.negusoft.localauth.vault.lock.LockRegister
 import com.negusoft.localauth.vault.lock.PinLock
 import com.negusoft.localauth.vault.lock.open
+import com.negusoft.localauth.vault.lock.registerBiometricLock
 import com.negusoft.localauth.vault.lock.registerPinLock
+import javax.crypto.Cipher
 
 class LocalAuthenticatorException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
@@ -195,8 +199,36 @@ class LocalAuthenticator private constructor(
         fun unlock(local: LocalAuthenticator, token: Token, protected: LockProtected): LocalVault.OpenVault
     }
 
+    interface UnlockerSuspending<Token> {
+        fun decode(bytes: ByteArray): Token
+        suspend fun unlock(local: LocalAuthenticator, token: Token, protected: LockProtected): LocalVault.OpenVault
+    }
+
     @Throws(LocalAuthenticatorException::class)
     fun <Token> authenticate(lockId: String, unlocker: Unlocker<Token>): Session {
+        val tokenBytes = lockRegistry[lockId] ?: throw LocalAuthenticatorException("Not lock width id '$lockId'")
+        val token: Token = try { unlocker.decode(tokenBytes) } catch(t: Throwable) {
+            throw LocalAuthenticatorException("Failed to decode lock token.", t)
+        }
+
+        val protected = object : LockProtected {
+            override suspend fun openSuspending(unlocker: suspend () -> ByteArray): LocalVault.OpenVault {
+                return vault?.openSuspending(unlocker)
+                    ?: throw LocalAuthenticatorException("Local Authenticator not initialized")
+            }
+
+            override fun open(unlocker: () -> ByteArray): LocalVault.OpenVault {
+                return vault?.open(unlocker)
+                    ?: throw LocalAuthenticatorException("Local Authenticator not initialized")
+            }
+        }
+        val openVault = unlocker.unlock(this, token, protected)
+
+        return Session(this, openVault)
+    }
+
+    @Throws(LocalAuthenticatorException::class)
+    suspend fun <Token> authenticateSuspending(lockId: String, unlocker: UnlockerSuspending<Token>): Session {
         val tokenBytes = lockRegistry[lockId] ?: throw LocalAuthenticatorException("Not lock width id '$lockId'")
         val token: Token = try { unlocker.decode(tokenBytes) } catch(t: Throwable) {
             throw LocalAuthenticatorException("Failed to decode lock token.", t)
@@ -225,6 +257,18 @@ class LocalAuthenticator private constructor(
         session: Session.() -> Result
     ): Result {
         val sessionContext = authenticate(lockId, unlocker)
+        return session(sessionContext).also {
+            // TODO close session explicitly ????
+        }
+    }
+
+    @Throws(LocalAuthenticatorException::class)
+    suspend fun <Token, Result> authenticatedSuspending(
+        lockId: String,
+        unlocker: UnlockerSuspending<Token>,
+        session: suspend Session.() -> Result
+    ): Result {
+        val sessionContext = authenticateSuspending(lockId, unlocker)
         return session(sessionContext).also {
             // TODO close session explicitly ????
         }
@@ -270,7 +314,7 @@ fun <T> LocalAuthenticator.Session.secret(decoder: (ByteArray) -> T): T {
     return decoder(secret())
 }
 
-// Locks ---------
+// Locks: Password ---------
 
 fun LocalAuthenticator.Editor.registerPassword(lockId: String, password: String) {
     registerLock(
@@ -290,8 +334,48 @@ fun LocalAuthenticator.Unlockers.withPassword(password: String) = object : Local
         return protected.open(token, password)
     }
 }
-fun LocalAuthenticator.authenticateWithPassword(lockId: String, password: String)
-= authenticate(lockId, LocalAuthenticator.Unlockers.withPassword(password))
+//fun LocalAuthenticator.authenticateWithBiometric(lockId: String)
+//= authenticate(lockId, LocalAuthenticator.Unlockers.withPassword(password))
+
+// Locks: Biometric ---------
+
+fun LocalAuthenticator.Editor.registerBiometric(lockId: String) {
+    registerLock(
+        lockId = lockId,
+        encoder = { it.encode() }
+    ) { authenticator, register ->
+        register.registerBiometricLock("${authenticator.id}_$lockId")
+    }
+}
+fun LocalAuthenticator.Unlockers.withBiometric(authenticator: suspend (Cipher) -> Cipher) = object : LocalAuthenticator.UnlockerSuspending<BiometricLock.Token> {
+    override fun decode(bytes: ByteArray) = BiometricLock.Token.restore(bytes)
+    override suspend fun unlock(
+        local: LocalAuthenticator,
+        token: BiometricLock.Token,
+        protected: LockProtected
+    ): LocalVault.OpenVault {
+        return protected.open(token, authenticator)
+    }
+}
+fun LocalAuthenticator.Unlockers.withBiometric(activity: FragmentActivity) = object : LocalAuthenticator.UnlockerSuspending<BiometricLock.Token> {
+    override fun decode(bytes: ByteArray) = BiometricLock.Token.restore(bytes)
+    override suspend fun unlock(
+        local: LocalAuthenticator,
+        token: BiometricLock.Token,
+        protected: LockProtected
+    ): LocalVault.OpenVault {
+        return protected.open(token, activity)
+    }
+}
+suspend fun LocalAuthenticator.authenticateWithBiometric(lockId: String, authenticator: suspend (Cipher) -> Cipher)
+        = authenticateSuspending(lockId, LocalAuthenticator.Unlockers.withBiometric(authenticator))
+suspend fun LocalAuthenticator.authenticateWithBiometric(lockId: String, activity: FragmentActivity)
+        = authenticateSuspending(lockId, LocalAuthenticator.Unlockers.withBiometric(activity))
+
+suspend fun <Result> LocalAuthenticator.authenticatedWithBiometric(lockId: String, authenticator: suspend (Cipher) -> Cipher, session: suspend Session.() -> Result)
+        = authenticatedSuspending(lockId, LocalAuthenticator.Unlockers.withBiometric(authenticator), session)
+suspend fun <Result> LocalAuthenticator.authenticatedWithBiometric(lockId: String, activity: FragmentActivity, session: suspend Session.() -> Result)
+        = authenticatedSuspending(lockId, LocalAuthenticator.Unlockers.withBiometric(activity), session)
 
 
 @Throws

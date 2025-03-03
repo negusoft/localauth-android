@@ -102,8 +102,8 @@ class BiometricLock(
         }
     }
 
-    suspend fun unlock(token: Token, activity: FragmentActivity): ByteArray = unlock(token) { lockedCipher ->
-        return@unlock BiometricHelper.showBiometricPrompt(
+    suspend fun unlock(token: Token, activity: FragmentActivity): ByteArray = unlock(token) authenticator@{ lockedCipher ->
+        return@authenticator BiometricHelper.showBiometricPrompt(
             activity = activity,
             cipher = lockedCipher,
             title = "Unlock vault",
@@ -143,7 +143,7 @@ private fun keySpec(alias: String, strongBoxBacked: Boolean): KeyGenParameterSpe
  * It might throw a LocalVaultException if an invalid key was decoded.
  */
 @Throws(BiometricLockException::class, LocalVaultException::class)
-suspend fun LocalVault.open(
+suspend fun LockProtected.open(
     token: BiometricLock.Token,
     authenticator: suspend (Cipher) -> Cipher
 ) = openSuspending {
@@ -151,14 +151,14 @@ suspend fun LocalVault.open(
     lock.unlock(token, authenticator)
 }
 @Throws(BiometricLockException::class, LocalVaultException::class)
-suspend fun LocalVault.open(
+suspend fun LockProtected.open(
     token: BiometricLock.Token,
     activity: FragmentActivity
 ) = openSuspending {
     val lock = BiometricLock.restore(token)
     lock.unlock(token, activity)
 }
-fun OpenVault.registerBiometricLock(
+fun LockRegister.registerBiometricLock(
     keystoreAlias: String, useStrongBoxWhenAvailable: Boolean = true
 ) : BiometricLock.Token = registerLock { privateKeyEncoded ->
     val lock = BiometricLock.create(keystoreAlias, useStrongBoxWhenAvailable)

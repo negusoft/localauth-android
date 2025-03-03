@@ -14,7 +14,7 @@ appcompat = "1.7.0"
 material = "1.12.0"
 biometric = "1.1.0"
 kotlinSerialization = "1.7.3"
-materialIcons = "1.7.5"
+materialIcons = "1.7.8"
 navigationCompose = "2.8.3"
 
 [libraries]

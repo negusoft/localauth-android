@@ -1,5 +1,11 @@
 package com.negusoft.localauth.core
 
+import android.content.SharedPreferences
+import androidx.core.content.edit
+import com.negusoft.localauth.persistence.ByteCoding
+import com.negusoft.localauth.persistence.writePropertyMap
+import com.negusoft.localauth.preferences.getByteArray
+import com.negusoft.localauth.preferences.putByteArray
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -13,9 +19,36 @@ sealed class RefreshAccessResult {
     object InvalidRefreshToken: RefreshAccessResult()
 }
 
-class MockAuthenticator {
+fun SharedPreferences.restoreTokens(): MutableMap<RefreshToken, String> {
+    val bytes = getByteArray("refresh_tokens") ?: return mutableMapOf()
+    return ByteCoding.decode(bytes)
+        .readPropertyMap()
+        .mapKeys { RefreshToken(it.key) }
+        .mapValues { it.value.decodeToString() }
+        .toMutableMap()
+}
+fun SharedPreferences.saveTokens(tokens: Map<RefreshToken, String>) {
+    val map = tokens
+        .mapKeys { it.key.value }
+        .mapValues { it.value.encodeToByteArray() }
+    val bytes = ByteCoding.encode { writePropertyMap(map) }
+    edit { putByteArray("refresh_tokens", bytes) }
+}
 
-    private val refreshTokenRegistry = mutableMapOf<RefreshToken, String>()
+class MockAuthenticator(
+    private val sharedPreferences: SharedPreferences
+) {
+
+//    private val refreshTokenRegistry = mutableMapOf<RefreshToken, String>()
+//    private val refreshTokenRegistry: MutableMap<RefreshToken, String> = sharedPreferences
+//        .getByteArray("asdf")
+//        ?.let { ByteCoding.decode(it).readPropertyMap() }
+//        ?.mapKeys { RefreshToken(it.key) }
+//        ?.mapValues { it.value.toString() }
+//        ?.toMutableMap()
+//        ?: mutableMapOf ()
+    private val refreshTokenRegistry = sharedPreferences.restoreTokens().toMutableMap()
+
 
     /**
      * Any non-empty username is accepted. The password must be the same as the username.
@@ -47,11 +80,13 @@ class MockAuthenticator {
 
     private fun invalidateRefreshToken(refreshToken: RefreshToken) {
         refreshTokenRegistry.remove(refreshToken)
+        sharedPreferences.saveTokens(refreshTokenRegistry)
     }
 
     private fun registerRefreshToken(username: String): RefreshToken {
         val refreshToken = generateNewRefreshToken()
         refreshTokenRegistry[refreshToken] = username
+        sharedPreferences.saveTokens(refreshTokenRegistry)
         return refreshToken
     }
 
