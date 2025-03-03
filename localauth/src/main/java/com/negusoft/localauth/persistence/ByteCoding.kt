@@ -256,4 +256,4 @@ class ByteDecoder(val bytes: ByteArray, startIndex: Int) {
 
 // String
 fun ByteDecoder.readStringProperty(): String? = readProperty()?.toString(Charsets.UTF_8)
-fun EncoderContext.writeProperty(value: String) { writeProperty(value.toByteArray(Charsets.UTF_8)) }
+fun EncoderContext.writeProperty(value: String?) { writeProperty(value?.toByteArray(Charsets.UTF_8)) }

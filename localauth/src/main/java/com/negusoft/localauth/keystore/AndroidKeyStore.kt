@@ -3,6 +3,7 @@ package com.negusoft.localauth.keystore
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.security.keystore.StrongBoxUnavailableException
 import java.math.BigInteger
 import java.security.KeyPair
 import java.security.KeyPairGenerator
@@ -31,6 +32,7 @@ class AndroidKeyStore {
 
     val keyStore: KeyStore = initKeyStore()
 
+    // TODO: Use StrongBox when available
     fun generateSecretKey(spec: KeyGenParameterSpec, algorithm: KeyAlgorithm = KeyAlgorithm.AES): SecretKey {
         val keyGenerator = KeyGenerator.getInstance(
             algorithm.value,
@@ -38,6 +40,28 @@ class AndroidKeyStore {
         )
         keyGenerator.init(spec)
         return keyGenerator.generateKey()
+    }
+
+    /**
+     * Generate a new key. If useStrongBox = true, It will try to create the key using StrongBox.
+     * It will fall back to non StrongBox backed key if not available.
+     */
+    fun generateSecretKey(
+        algorithm: KeyAlgorithm = KeyAlgorithm.AES,
+        useStrongBox: Boolean = true,
+        specBuilder: () -> KeyGenParameterSpec.Builder
+    ): SecretKey {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || !useStrongBox) {
+            val spec = specBuilder().setStrongBoxBacked(false).build()
+            return generateSecretKey(spec, algorithm)
+        }
+        try {
+            val spec = specBuilder().setStrongBoxBacked(true).build()
+            return generateSecretKey(spec, algorithm)
+        } catch (e: StrongBoxUnavailableException) {
+            val spec = specBuilder().setStrongBoxBacked(false).build()
+            return generateSecretKey(spec, algorithm)
+        }
     }
 
     @Throws
@@ -53,6 +77,28 @@ class AndroidKeyStore {
         )
         keyPairGenerator.initialize(spec)
         return keyPairGenerator.generateKeyPair()
+    }
+
+    /**
+     * Generate a new key pair. If useStrongBox = true, It will try to create the key using StrongBox.
+     * It will fall back to non StrongBox backed key if not available.
+     */
+    fun generateKeyPair(
+        algorithm: KeyPairAlgorithm = KeyPairAlgorithm.RSA,
+        useStrongBox: Boolean = true,
+        specBuilder: () -> KeyGenParameterSpec.Builder
+    ): KeyPair {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || !useStrongBox) {
+            val spec = specBuilder().setStrongBoxBacked(false).build()
+            return generateKeyPair(spec, algorithm)
+        }
+        try {
+            val spec = specBuilder().setStrongBoxBacked(true).build()
+            return generateKeyPair(spec, algorithm)
+        } catch (e: StrongBoxUnavailableException) {
+            val spec = specBuilder().setStrongBoxBacked(false).build()
+            return generateKeyPair(spec, algorithm)
+        }
     }
 
     @Throws

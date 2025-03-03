@@ -3,87 +3,60 @@ package com.negusoft.localauth.vault
 import com.negusoft.localauth.crypto.Ciphers
 import com.negusoft.localauth.crypto.Keys
 import com.negusoft.localauth.persistence.ByteCoding
-import com.negusoft.localauth.persistence.ByteCodingException
-import com.negusoft.localauth.vault.lock.LockException
-import com.negusoft.localauth.vault.lock.LockProtected
-import com.negusoft.localauth.vault.lock.LockRegister
+import com.negusoft.localauth.persistence.readStringProperty
+import com.negusoft.localauth.persistence.writeProperty
+import com.negusoft.localauth.lock.LockException
+import com.negusoft.localauth.lock.LockProtected
+import com.negusoft.localauth.lock.LockRegister
+import java.security.KeyPair
 import java.security.PrivateKey
 import java.security.PublicKey
 
-data class EncryptedValue(
-    val encryptedKey: ByteArray?,
-    val encryptedData: ByteArray
-) {
-
-    companion object {
-        private const val ENCODING_VERSION: Byte = 0x00
-
-        @Throws(LocalVaultException::class)
-        fun decode(encoded: ByteArray): EncryptedValue {
-            try {
-                val decoder = ByteCoding.decode(encoded)
-                if (!decoder.checkValueEquals(byteArrayOf(ENCODING_VERSION))) {
-                    throw LocalVaultException("Wrong encoding version (${encoded[0]}).")
-                }
-                val encryptedKey = decoder.readProperty()
-                val encryptedData = decoder.readFinal()
-                return EncryptedValue(encryptedKey, encryptedData)
-            } catch (e: ByteCodingException) {
-                throw LocalVaultException("Failed to decode encrypted value.", e)
-            }
-        }
-    }
-
-    fun encode() = ByteCoding.encode(byteArrayOf(ENCODING_VERSION)) {
-        writeProperty(encryptedKey)
-        writeValue(encryptedData)
-    }
-
-}
+@JvmInline
+value class EncryptedValue(val value: ByteArray)
 
 class LocalVaultException(message: String, cause: Throwable? = null): Exception(message, cause)
 
 class LocalVault private constructor(
-    val publicKey: PublicKey
+    val publicKey: PublicKey,
+    val keyType: String?
 ): LockProtected {
     companion object {
         private const val ENCODING_VERSION: Byte = 0x00
 
-        fun create(): OpenVault {
-            // generate master key pair
-            val masterKeyPair = Keys.RSA.generateKeyPair()
-            val vault = LocalVault(masterKeyPair.public)
-            return OpenVault(vault, masterKeyPair.private)
+        fun create(keyPair: KeyPair): OpenVault {
+            val vault = LocalVault(keyPair.public, null)
+            return OpenVault(vault, keyPair.private)
         }
 
-        fun create(config: (OpenVault) -> Unit): LocalVault {
-            // generate master key pair
-            val masterKeyPair = Keys.RSA.generateKeyPair()
-            val vault = LocalVault(masterKeyPair.public)
-            val openVault = OpenVault(vault, masterKeyPair.private)
+        fun create(): OpenVault = create(Keys.RSA.generateKeyPair())
+
+        fun create(keyPair: KeyPair, config: (OpenVault) -> Unit): LocalVault {
+            val openVault = create(keyPair)
                 .apply(config)
 
             openVault.close()
 
-            return vault
+            return openVault.vault
         }
 
-        fun restore(publicKey: PublicKey) = LocalVault(publicKey)
+        fun create(config: (OpenVault) -> Unit): LocalVault = create(Keys.RSA.generateKeyPair(), config)
+
+        fun restore(publicKey: PublicKey, keyType: String? = null) = LocalVault(publicKey, keyType)
 
         @Throws(LocalVaultException::class)
         fun restore(encoded: ByteArray): LocalVault {
-            val publicKey = decodePublicKey(encoded)
-            return LocalVault(publicKey)
-        }
-
-        @Throws(LocalVaultException::class)
-        private fun decodePublicKey(encoded: ByteArray): PublicKey {
             val decoder = ByteCoding.decode(encoded)
             if (!decoder.checkValueEquals(byteArrayOf(ENCODING_VERSION)))
                 throw LocalVaultException("Wrong encoding version (${encoded[0]}).")
-            
+
+            val keyType = decoder.readStringProperty()
+            assert(keyType.isNullOrBlank()) { "Invalid key type." }
+
             val keyBytes = decoder.readFinal()
-            return Keys.RSA.decodePublicKey(keyBytes) ?: throw LocalVaultException("Failed to decode public key")
+            val publicKey = Keys.RSA.decodePublicKey(keyBytes) ?: throw LocalVaultException("Failed to decode public key")
+
+            return LocalVault(publicKey, keyType)
         }
     }
 
@@ -94,20 +67,11 @@ class LocalVault private constructor(
         @Throws(LocalVaultException::class)
         fun decrypt(encrypted: EncryptedValue): ByteArray {
             try {
-                val encryptedData = encrypted.encryptedData
-                val encryptedSecretKey = encrypted.encryptedKey
-
-                // If no secret key -> Directly decrypt with the private key
-                if (encryptedSecretKey == null) {
-                    return Ciphers.RSA_ECB_OAEP.decrypt(encryptedData, privateKey)
-                }
-
-                // Decrypt the secret
-                val secretKeyEncoded = Ciphers.RSA_ECB_OAEP.decrypt(encryptedSecretKey, privateKey)
-                val secretKey = Keys.AES.decodeSecretKey(secretKeyEncoded)
-
-                // Use the secret key to decrypt the value
-                return Ciphers.AES_GCM_NoPadding.decrypt(encryptedData, secretKey)
+                val decoder = ByteCoding.decode(encrypted.value)
+                val method = decoder.readStringProperty()
+                assert(method.isNullOrBlank()) { "Invalid encryption method." }
+                val encryptedData = decoder.readFinal()
+                return Ciphers.RSA_ECB_OAEPwithAES_GCM_NoPadding.decrypt(encryptedData, privateKey)
             } catch (e: Throwable) {
                 throw LocalVaultException("Failed to decrypt data.", e)
             }
@@ -171,29 +135,22 @@ class LocalVault private constructor(
 
     /** Encrypt the given value with the public key and store it. */
     @Throws(LocalVaultException::class)
-    fun encrypt(value: ByteArray): EncryptedValue {
+    fun encrypt(value: ByteArray, method: String? = null): EncryptedValue {
         try {
-            // If the data is small enough -> Encrypt it with the public key directly
-            val maxDataSize = Ciphers.RSA_ECB_OAEP.maxEncryptDataSize(publicKey) ?: 0
-            if (value.size <= maxDataSize) {
-                val encrypted = Ciphers.RSA_ECB_OAEP.encrypt(value, publicKey)
-                return EncryptedValue(null, encrypted)
+            assert(method.isNullOrBlank()) { "Invalid encryption method."}
+            val encrypted = Ciphers.RSA_ECB_OAEPwithAES_GCM_NoPadding.encrypt(value, publicKey)
+            val bytes = ByteCoding.encode {
+                writeProperty(method)
+                writeValue(encrypted)
             }
-
-            // Generate a secret key to encrypt the value
-            val secretKey = Keys.AES.generateSecretKey()
-            val encryptedData = Ciphers.AES_GCM_NoPadding.encrypt(value, secretKey)
-
-            // Encrypt the secret key with the public key
-            val encryptedSecretKey = Ciphers.RSA_ECB_OAEP.encrypt(secretKey.encoded, publicKey)
-
-            return EncryptedValue(encryptedSecretKey, encryptedData)
+            return EncryptedValue(bytes)
         } catch (e: Throwable) {
             throw LocalVaultException("Failed to encrypt data.", e)
         }
     }
 
     fun encode() = ByteCoding.encode(byteArrayOf(ENCODING_VERSION)) {
+        writeProperty(keyType)
         writeValue(publicKey.encoded)
     }
 }

@@ -5,11 +5,11 @@ import androidx.core.content.edit
 import androidx.fragment.app.FragmentActivity
 import com.negusoft.localauth.vault.EncryptedValue
 import com.negusoft.localauth.vault.LocalVault
-import com.negusoft.localauth.vault.lock.BiometricLock
-import com.negusoft.localauth.vault.lock.PinLock
-import com.negusoft.localauth.vault.lock.open
-import com.negusoft.localauth.vault.lock.registerBiometricLock
-import com.negusoft.localauth.vault.lock.registerPinLock
+import com.negusoft.localauth.lock.BiometricLock
+import com.negusoft.localauth.lock.PinLock
+import com.negusoft.localauth.lock.open
+import com.negusoft.localauth.lock.registerBiometricLock
+import com.negusoft.localauth.lock.registerPinLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
@@ -84,7 +84,7 @@ class VaultManager(
     fun newSecretValue(vault: VaultModel, key: String, value: String): VaultModel {
         val encrypted = vault.vault.encrypt(value.toByteArray())
         return vault.modify(
-            values = vault.secretValues + SecretValueModel(key, key, encrypted.encode())
+            values = vault.secretValues + SecretValueModel(key, key, encrypted.value)
         ).also { save(it) }
     }
 
@@ -209,5 +209,5 @@ class SecretValueModel(
     val description: String,
     val encoded: ByteArray
 ) {
-    val encryptedValue: EncryptedValue get() = EncryptedValue.decode(encoded)
+    val encryptedValue: EncryptedValue get() = EncryptedValue(encoded)
 }

@@ -5,13 +5,15 @@ import androidx.core.content.edit
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.negusoft.localauth.vault.LocalVault
-import com.negusoft.localauth.vault.lock.BiometricLockException
-import com.negusoft.localauth.vault.lock.BiometricLock
-import com.negusoft.localauth.vault.lock.PinLockException
-import com.negusoft.localauth.vault.lock.PinLock
-import com.negusoft.localauth.vault.lock.open
-import com.negusoft.localauth.vault.lock.registerBiometricLock
-import com.negusoft.localauth.vault.lock.registerPinLock
+import com.negusoft.localauth.lock.BiometricLockException
+import com.negusoft.localauth.lock.BiometricLock
+import com.negusoft.localauth.lock.LockException
+import com.negusoft.localauth.lock.PinLock
+import com.negusoft.localauth.lock.SimpleLock
+import com.negusoft.localauth.lock.open
+import com.negusoft.localauth.lock.registerBiometricLock
+import com.negusoft.localauth.lock.registerPinLock
+import com.negusoft.localauth.lock.registerSimpleLock
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertThrows
 import org.junit.Assert.fail
@@ -55,13 +57,23 @@ class VaultTest {
     }
 
     @Test
+    fun testSimpleLock() {
+        lateinit var token: SimpleLock.Token
+        val vault = LocalVault.create { openVault ->
+            token = openVault.registerSimpleLock("lockId")
+        }
+
+        vault.open(token)
+    }
+
+    @Test
     fun testPinLock() {
         lateinit var pinLockToken: PinLock.Token
         val vault = LocalVault.create { openVault ->
             pinLockToken = openVault.registerPinLock("12345", "lockId")
         }
 
-        assertThrows(PinLockException::class.java) {
+        assertThrows(LockException::class.java) {
             vault.open(pinLockToken, "wrong")
         }
 

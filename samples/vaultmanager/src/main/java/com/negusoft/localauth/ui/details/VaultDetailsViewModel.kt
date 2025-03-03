@@ -9,8 +9,8 @@ import com.negusoft.localauth.core.VaultManager
 import com.negusoft.localauth.core.VaultModel
 import com.negusoft.localauth.ui.common.ErrorModel
 import com.negusoft.localauth.ui.common.RetryErrorModel
-import com.negusoft.localauth.vault.lock.BiometricLockException
-import com.negusoft.localauth.vault.lock.PinLockException
+import com.negusoft.localauth.lock.BiometricLockException
+import com.negusoft.localauth.lock.PinLockException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 

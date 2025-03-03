@@ -15,7 +15,7 @@ import com.negusoft.localauth.registerBiometric
 import com.negusoft.localauth.registerPassword
 import com.negusoft.localauth.updateSecret
 import com.negusoft.localauth.utils.mapState
-import com.negusoft.localauth.vault.lock.PinLockException
+import com.negusoft.localauth.lock.PinLockException
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class InvalidUsernameOrPasswordException: Exception("Invalid username or password.")

@@ -1,4 +1,4 @@
-package com.negusoft.localauth.vault.lock
+package com.negusoft.localauth.lock
 
 import com.negusoft.localauth.vault.LocalVault.OpenVault
 import com.negusoft.localauth.vault.LocalVaultException

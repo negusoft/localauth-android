@@ -11,13 +11,13 @@ import com.negusoft.localauth.persistence.writeProperty
 import com.negusoft.localauth.persistence.writePropertyMap
 import com.negusoft.localauth.vault.EncryptedValue
 import com.negusoft.localauth.vault.LocalVault
-import com.negusoft.localauth.vault.lock.BiometricLock
-import com.negusoft.localauth.vault.lock.LockProtected
-import com.negusoft.localauth.vault.lock.LockRegister
-import com.negusoft.localauth.vault.lock.PinLock
-import com.negusoft.localauth.vault.lock.open
-import com.negusoft.localauth.vault.lock.registerBiometricLock
-import com.negusoft.localauth.vault.lock.registerPinLock
+import com.negusoft.localauth.lock.BiometricLock
+import com.negusoft.localauth.lock.LockProtected
+import com.negusoft.localauth.lock.LockRegister
+import com.negusoft.localauth.lock.PinLock
+import com.negusoft.localauth.lock.open
+import com.negusoft.localauth.lock.registerBiometricLock
+import com.negusoft.localauth.lock.registerPinLock
 import javax.crypto.Cipher
 
 class LocalAuthenticatorException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -38,8 +38,8 @@ class LocalAuthenticatorException(message: String, cause: Throwable? = null) : E
 class LocalAuthenticator private constructor(
     val id: String = "local_authenticator",
     private var vault: LocalVault? = null,
-    private var secretEncrypted: ByteArray? = null,
-    private val secretPropertyRegistry: MutableMap<String, ByteArray> = mutableMapOf(),
+    private var secretEncrypted: EncryptedValue? = null,
+    private val secretPropertyRegistry: MutableMap<String, EncryptedValue> = mutableMapOf(),
     private val publicPropertyRegistry: MutableMap<String, ByteArray> = mutableMapOf(),
     private val lockRegistry: MutableMap<String, ByteArray> = mutableMapOf()
 ) {
@@ -61,8 +61,9 @@ class LocalAuthenticator private constructor(
             }
             val id = decoder.readStringProperty() ?: throw ByteCodingException("Failed to decode 'id'.")
             val vault = decoder.readProperty()?.let { LocalVault.restore(it) } ?: throw ByteCodingException("Failed to decode vault.")
-            val secretEncrypted = decoder.readProperty()
+            val secretEncrypted = decoder.readProperty()?.let(::EncryptedValue)
             val secretPropertyRegistry = decoder.readPropertyMap()
+                .mapValues { EncryptedValue(it.value) }
                 .toMutableMap()
             val publicPropertyRegistry = decoder.readPropertyMap()
                 .toMutableMap()
@@ -109,14 +110,14 @@ class LocalAuthenticator private constructor(
         @Throws(LocalAuthenticatorException::class)
         fun secret(): ByteArray {
             val secretEncrypted = secretEncrypted ?: throw LocalAuthenticatorException("Secret not registered.")
-            return openVault.decrypt(EncryptedValue.decode(secretEncrypted))
+            return openVault.decrypt(secretEncrypted)
         }
 
         @Throws(LocalAuthenticatorException::class)
         fun secretProperty(id: String): ByteArray {
             val propertyBytes = secretPropertyRegistry.get(id)
                 ?: throw LocalAuthenticatorException("No property register for id '$id'.")
-            return openVault.decrypt(EncryptedValue.decode(propertyBytes))
+            return openVault.decrypt(propertyBytes)
         }
 
         fun edit(): Editor {
@@ -158,7 +159,7 @@ class LocalAuthenticator private constructor(
     @Throws(LocalAuthenticatorException::class)
     fun updateSecret(value: ByteArray) {
         val vault = vault ?: throw LocalAuthenticatorException("Local Authenticator not initialized")
-        secretEncrypted = vault.encrypt(value).encode()
+        secretEncrypted = vault.encrypt(value)
     }
 
     fun removeSecret() {
@@ -168,7 +169,7 @@ class LocalAuthenticator private constructor(
     @Throws(LocalAuthenticatorException::class)
     fun updateSecretProperty(id: String, value: ByteArray) {
         val vault = vault ?: throw LocalAuthenticatorException("Local Authenticator not initialized")
-        val valueEncrypted = vault.encrypt(value).encode()
+        val valueEncrypted = vault.encrypt(value)
         secretPropertyRegistry[id] = valueEncrypted
     }
 
@@ -294,8 +295,8 @@ class LocalAuthenticator private constructor(
         return ByteCoding.encode(prefix = byteArrayOf(ENCODING_VERSION)) {
             writeProperty(id)
             writeProperty(vault?.encode())
-            writeProperty(secretEncrypted)
-            writePropertyMap(secretPropertyRegistry)
+            writeProperty(secretEncrypted?.value)
+            writePropertyMap(secretPropertyRegistry.mapValues { it.value.value })
             writePropertyMap(publicPropertyRegistry)
             writePropertyMap(lockRegistry)
         }

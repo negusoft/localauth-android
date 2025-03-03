@@ -1,7 +1,7 @@
 package com.negusoft.localauth
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.negusoft.localauth.vault.lock.PinLockException
+import com.negusoft.localauth.lock.LockException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -57,7 +57,7 @@ class LocalAuthenticatorTest {
         try {
             authenticator.authenticatedSecret("11111")
             fail("Should have thrown an exception")
-        } catch (e: PinLockException) {
+        } catch (e: LockException) {
             // Expected
         }
 
