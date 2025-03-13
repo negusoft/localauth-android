@@ -1,23 +1,12 @@
 package com.negusoft.localauth.authenticator
 
-import androidx.fragment.app.FragmentActivity
 import com.negusoft.localauth.authenticator.LocalAuthenticator.Editor
-import com.negusoft.localauth.authenticator.LocalAuthenticator.Session
-import com.negusoft.localauth.authenticator.LocalAuthenticator.Unlockers
-import com.negusoft.localauth.coding.encode
-import com.negusoft.localauth.coding.restore
-import com.negusoft.localauth.vault.EncryptedValue
-import com.negusoft.localauth.vault.LocalVault
-import com.negusoft.localauth.lock.BiometricLock
 import com.negusoft.localauth.lock.EncodedLockToken
 import com.negusoft.localauth.lock.LockProtected
 import com.negusoft.localauth.lock.LockRegister
-import com.negusoft.localauth.lock.PinLock
-import com.negusoft.localauth.lock.open
-import com.negusoft.localauth.lock.registerBiometricLock
-import com.negusoft.localauth.lock.registerPinLock
+import com.negusoft.localauth.vault.EncryptedValue
+import com.negusoft.localauth.vault.LocalVault
 import kotlinx.serialization.Serializable
-import javax.crypto.Cipher
 
 class LocalAuthenticatorException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
@@ -96,6 +85,11 @@ class LocalAuthenticator internal constructor(
             return openVault.decrypt(propertyBytes)
         }
 
+        @Throws(LocalAuthenticatorException::class)
+        fun decrypt(encrypted: EncryptedValue): ByteArray {
+            return openVault.decrypt(encrypted)
+        }
+
         fun edit(): Editor {
             return Editor(authenticator, openVault)
         }
@@ -161,6 +155,12 @@ class LocalAuthenticator internal constructor(
 
     fun removePublicProperty(id: String) {
         publicPropertyRegistry.remove(id)
+    }
+
+    /** Encrypt the value. It will not be stored in the authenticator. */
+    fun encrypt(value: ByteArray): EncryptedValue {
+        val vault = vault ?: throw LocalAuthenticatorException("Local Authenticator not initialized")
+        return vault.encrypt(value)
     }
 
     fun lockEnabled(lockId: String) = lockRegistry.containsKey(lockId)
