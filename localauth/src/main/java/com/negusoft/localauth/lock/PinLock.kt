@@ -4,6 +4,7 @@ import android.security.keystore.KeyGenParameterSpec
 import com.negusoft.localauth.crypto.Ciphers
 import com.negusoft.localauth.crypto.decryptWithPassword
 import com.negusoft.localauth.crypto.encryptWithPassword
+import kotlinx.serialization.Serializable
 import javax.crypto.SecretKey
 
 class WrongPinException : LockException("Wrong PIN code.")
@@ -13,6 +14,7 @@ class PinLock private constructor(
     keyIdentifier: String,
     encryptionMethod: String?
 ): KeyStoreLockCommons.SecretKeyLock(key, keyIdentifier, encryptionMethod) {
+    @Serializable
     data class Token(
         val keystoreAlias: String,
         val encryptionMethod: String?,

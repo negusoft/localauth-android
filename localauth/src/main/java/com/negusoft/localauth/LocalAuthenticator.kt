@@ -12,12 +12,14 @@ import com.negusoft.localauth.persistence.writePropertyMap
 import com.negusoft.localauth.vault.EncryptedValue
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.lock.BiometricLock
+import com.negusoft.localauth.lock.EncodedLockToken
 import com.negusoft.localauth.lock.LockProtected
 import com.negusoft.localauth.lock.LockRegister
 import com.negusoft.localauth.lock.PinLock
 import com.negusoft.localauth.lock.open
 import com.negusoft.localauth.lock.registerBiometricLock
 import com.negusoft.localauth.lock.registerPinLock
+import kotlinx.serialization.Serializable
 import javax.crypto.Cipher
 
 class LocalAuthenticatorException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -35,13 +37,14 @@ class LocalAuthenticatorException(message: String, cause: Throwable? = null) : E
  *  - public properties: These are not protected by a lock. No need to authenticate to read them.
  *
  */
+@Serializable
 class LocalAuthenticator private constructor(
     val id: String = "local_authenticator",
     private var vault: LocalVault? = null,
     private var secretEncrypted: EncryptedValue? = null,
     private val secretPropertyRegistry: MutableMap<String, EncryptedValue> = mutableMapOf(),
     private val publicPropertyRegistry: MutableMap<String, ByteArray> = mutableMapOf(),
-    private val lockRegistry: MutableMap<String, ByteArray> = mutableMapOf()
+    private val lockRegistry: MutableMap<String, EncodedLockToken> = mutableMapOf()
 ) {
 
     companion object {
@@ -68,6 +71,7 @@ class LocalAuthenticator private constructor(
             val publicPropertyRegistry = decoder.readPropertyMap()
                 .toMutableMap()
             val lockRegistry = decoder.readPropertyMap()
+                .mapValues { EncodedLockToken(it.value) }
                 .toMutableMap()
 
             return LocalAuthenticator(id, vault, secretEncrypted, secretPropertyRegistry, publicPropertyRegistry, lockRegistry)
@@ -81,7 +85,7 @@ class LocalAuthenticator private constructor(
 
         fun <Token> registerLock(
             lockId: String,
-            encoder: (Token) -> ByteArray,
+            encoder: (Token) -> EncodedLockToken,
             registration: (authenticator: LocalAuthenticator, register: LockRegister) -> Token
         ) {
             val register = object : LockRegister {
@@ -207,8 +211,8 @@ class LocalAuthenticator private constructor(
 
     @Throws(LocalAuthenticatorException::class)
     fun <Token> authenticate(lockId: String, unlocker: Unlocker<Token>): Session {
-        val tokenBytes = lockRegistry[lockId] ?: throw LocalAuthenticatorException("Not lock width id '$lockId'")
-        val token: Token = try { unlocker.decode(tokenBytes) } catch(t: Throwable) {
+        val encodedToken = lockRegistry[lockId] ?: throw LocalAuthenticatorException("Not lock width id '$lockId'")
+        val token: Token = try { unlocker.decode(encodedToken.bytes) } catch(t: Throwable) {
             throw LocalAuthenticatorException("Failed to decode lock token.", t)
         }
 
@@ -230,8 +234,8 @@ class LocalAuthenticator private constructor(
 
     @Throws(LocalAuthenticatorException::class)
     suspend fun <Token> authenticateSuspending(lockId: String, unlocker: UnlockerSuspending<Token>): Session {
-        val tokenBytes = lockRegistry[lockId] ?: throw LocalAuthenticatorException("Not lock width id '$lockId'")
-        val token: Token = try { unlocker.decode(tokenBytes) } catch(t: Throwable) {
+        val encodedToken = lockRegistry[lockId] ?: throw LocalAuthenticatorException("Not lock width id '$lockId'")
+        val token: Token = try { unlocker.decode(encodedToken.bytes) } catch(t: Throwable) {
             throw LocalAuthenticatorException("Failed to decode lock token.", t)
         }
 
@@ -295,10 +299,10 @@ class LocalAuthenticator private constructor(
         return ByteCoding.encode(prefix = byteArrayOf(ENCODING_VERSION)) {
             writeProperty(id)
             writeProperty(vault?.encode())
-            writeProperty(secretEncrypted?.value)
-            writePropertyMap(secretPropertyRegistry.mapValues { it.value.value })
+            writeProperty(secretEncrypted?.bytes)
+            writePropertyMap(secretPropertyRegistry.mapValues { it.value.bytes })
             writePropertyMap(publicPropertyRegistry)
-            writePropertyMap(lockRegistry)
+            writePropertyMap(lockRegistry.mapValues { it.value.bytes })
         }
     }
 
@@ -320,7 +324,7 @@ fun <T> LocalAuthenticator.Session.secret(decoder: (ByteArray) -> T): T {
 fun LocalAuthenticator.Editor.registerPassword(lockId: String, password: String) {
     registerLock(
         lockId = lockId,
-        encoder = { it.encode() }
+        encoder = { EncodedLockToken(it.encode()) }
     ) { authenticator, register ->
         register.registerPinLock(password, "${authenticator.id}_$lockId")
     }
@@ -343,7 +347,7 @@ fun LocalAuthenticator.Unlockers.withPassword(password: String) = object : Local
 fun LocalAuthenticator.Editor.registerBiometric(lockId: String) {
     registerLock(
         lockId = lockId,
-        encoder = { it.encode() }
+        encoder = { EncodedLockToken(it.encode()) }
     ) { authenticator, register ->
         register.registerBiometricLock("${authenticator.id}_$lockId")
     }

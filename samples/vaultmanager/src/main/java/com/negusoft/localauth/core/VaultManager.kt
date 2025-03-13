@@ -84,7 +84,7 @@ class VaultManager(
     fun newSecretValue(vault: VaultModel, key: String, value: String): VaultModel {
         val encrypted = vault.vault.encrypt(value.toByteArray())
         return vault.modify(
-            values = vault.secretValues + SecretValueModel(key, key, encrypted.value)
+            values = vault.secretValues + SecretValueModel(key, key, encrypted.bytes)
         ).also { save(it) }
     }
 

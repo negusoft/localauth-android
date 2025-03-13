@@ -4,6 +4,7 @@ import android.security.keystore.KeyGenParameterSpec
 import androidx.fragment.app.FragmentActivity
 import com.negusoft.localauth.keystore.BiometricHelper
 import com.negusoft.localauth.vault.LocalVaultException
+import kotlinx.serialization.Serializable
 import java.security.KeyPair
 import javax.crypto.Cipher
 
@@ -20,6 +21,7 @@ class BiometricLock(
     keyIdentifier: String,
     encryptionMethod: String?
 ): KeyStoreLockCommons.KeyPairLock(keyPair, keyIdentifier, encryptionMethod) {
+    @Serializable
     data class Token(
         val keystoreAlias: String,
         val encryptionMethod: String?,

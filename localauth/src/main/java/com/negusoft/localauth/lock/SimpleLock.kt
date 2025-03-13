@@ -1,6 +1,7 @@
 package com.negusoft.localauth.lock
 
 import android.security.keystore.KeyGenParameterSpec
+import kotlinx.serialization.Serializable
 import javax.crypto.SecretKey
 
 /**
@@ -13,6 +14,7 @@ class SimpleLock private constructor(
     keyIdentifier: String,
     encryptionMethod: String?
 ): KeyStoreLockCommons.SecretKeyLock(key, keyIdentifier, encryptionMethod) {
+    @Serializable
     data class Token(
         val keystoreAlias: String,
         val encryptionMethod: String?,

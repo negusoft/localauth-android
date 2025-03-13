@@ -2,6 +2,8 @@ package com.negusoft.localauth
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.negusoft.localauth.lock.LockException
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -77,6 +79,34 @@ class LocalAuthenticatorTest {
         }.encode()
 
         LocalAuthenticator.restore(encodedAuthenticator).let { decodedAuthenticator ->
+            val secret = decodedAuthenticator.authenticatedSecret("11111", Adapter::decode)
+            assertEquals(secret, "test")
+
+            val secretProperty = decodedAuthenticator
+                .authenticated("11111") { secretProperty("testProperty") }
+                .decodeToString()
+            assertEquals(secretProperty, "secret_property")
+
+            val publicProperty = decodedAuthenticator.publicProperty("testProperty")?.decodeToString()
+            assertEquals(publicProperty, "public_property")
+
+            assertTrue(decodedAuthenticator.lockEnabled("password"))
+        }
+    }
+
+
+    @Test
+    fun serializeAndDeserializeAuthenticator() {
+        val authenticator = LocalAuthenticator.create().apply {
+            initialize("test", Adapter::encode).apply {
+                registerPassword("password", "11111")
+            }
+            updateSecretProperty("testProperty", "secret_property".toByteArray())
+            updatePublicProperty("testProperty", "public_property".toByteArray())
+        }
+        val encodedAuthenticator = Json.encodeToString(authenticator)
+
+        Json.decodeFromString<LocalAuthenticator>(encodedAuthenticator).let { decodedAuthenticator ->
             val secret = decodedAuthenticator.authenticatedSecret("11111", Adapter::decode)
             assertEquals(secret, "test")
 

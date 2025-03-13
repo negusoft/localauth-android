@@ -63,11 +63,22 @@ object Keys {
             return keyFactory.generatePrivate(keySpec)
         }
 
-        /** Decode the private key that was returned by PublicKey.getEncoded() */
-        fun decodePublicKey(bytes: ByteArray): PublicKey? {
+        /**
+         * Decode the private key encoded in X509 format (eg. returned by PublicKey.getEncoded()).
+         * If the algorithm is not specified, it will default to KeyProperties.KEY_ALGORITHM_RSA.
+         */
+        fun decodePublicKey(bytes: ByteArray, algorithm: String? = null): PublicKey? {
+            val resolvedAlgorithm = algorithm ?: KeyProperties.KEY_ALGORITHM_RSA
             val keySpec = X509EncodedKeySpec(bytes)
-            val keyFactory = KeyFactory.getInstance(KeyProperties.KEY_ALGORITHM_RSA)
+            val keyFactory = KeyFactory.getInstance(resolvedAlgorithm)
             return keyFactory.generatePublic(keySpec)
         }
+
+//        /** Decode the private key that was returned by PublicKey.getEncoded() */
+//        fun decodePublicKey(bytes: ByteArray): PublicKey? {
+//            val keySpec = X509EncodedKeySpec(bytes)
+//            val keyFactory = KeyFactory.getInstance(KeyProperties.KEY_ALGORITHM_RSA)
+//            return keyFactory.generatePublic(keySpec)
+//        }
     }
 }

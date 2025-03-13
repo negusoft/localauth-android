@@ -8,17 +8,21 @@ import com.negusoft.localauth.persistence.writeProperty
 import com.negusoft.localauth.lock.LockException
 import com.negusoft.localauth.lock.LockProtected
 import com.negusoft.localauth.lock.LockRegister
+import com.negusoft.localauth.serialization.PublicKeyX509Serializer
+import kotlinx.serialization.Serializable
 import java.security.KeyPair
 import java.security.PrivateKey
 import java.security.PublicKey
 
 @JvmInline
-value class EncryptedValue(val value: ByteArray)
+@Serializable
+value class EncryptedValue(val bytes: ByteArray)
 
 class LocalVaultException(message: String, cause: Throwable? = null): Exception(message, cause)
 
+@Serializable
 class LocalVault private constructor(
-    val publicKey: PublicKey,
+    @Serializable(with = PublicKeyX509Serializer::class) val publicKey: PublicKey,
     val keyType: String?
 ): LockProtected {
     companion object {
@@ -67,7 +71,7 @@ class LocalVault private constructor(
         @Throws(LocalVaultException::class)
         fun decrypt(encrypted: EncryptedValue): ByteArray {
             try {
-                val decoder = ByteCoding.decode(encrypted.value)
+                val decoder = ByteCoding.decode(encrypted.bytes)
                 val method = decoder.readStringProperty()
                 assert(method.isNullOrBlank()) { "Invalid encryption method." }
                 val encryptedData = decoder.readFinal()

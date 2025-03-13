@@ -15,6 +15,9 @@ import com.negusoft.localauth.lock.registerBiometricLock
 import com.negusoft.localauth.lock.registerPinLock
 import com.negusoft.localauth.lock.registerSimpleLock
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonEncoder
 import org.junit.Assert.assertThrows
 import org.junit.Assert.fail
 import org.junit.Before
@@ -47,6 +50,25 @@ class VaultTest {
         val encoded = vault.encode()
 
         val restored = LocalVault.restore(encoded)
+        val secret = "Hello, Vault!".toByteArray()
+        val encryptedSecret = restored.encrypt(secret)
+
+        val openVault = restored.open(pinLockToken, "12345")
+        val decryptedSecret = openVault.decrypt(encryptedSecret)
+
+        assert(decryptedSecret.contentEquals("Hello, Vault!".toByteArray()))
+    }
+
+    @Test
+    fun serializeDeserialize() {
+        lateinit var pinLockToken: PinLock.Token
+        val vault = LocalVault.create { openVault ->
+            pinLockToken = openVault.registerPinLock("12345", "lockId")
+        }
+
+        val encoded = Json.encodeToString(vault)
+
+        val restored = Json.decodeFromString<LocalVault>(encoded)
         val secret = "Hello, Vault!".toByteArray()
         val encryptedSecret = restored.encrypt(secret)
 

@@ -2,6 +2,7 @@ package com.negusoft.localauth.lock
 
 import com.negusoft.localauth.vault.LocalVault.OpenVault
 import com.negusoft.localauth.vault.LocalVaultException
+import kotlinx.serialization.Serializable
 
 /**
  * Error related to lock related operation.
@@ -9,6 +10,9 @@ import com.negusoft.localauth.vault.LocalVaultException
  */
 open class LockException(message: String, cause: Throwable? = null): Exception(message, cause)
 
+@JvmInline
+@Serializable
+value class EncodedLockToken(val bytes: ByteArray)
 
 interface LockRegister {
 
