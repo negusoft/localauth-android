@@ -2,8 +2,8 @@ package com.negusoft.localauth.core
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
-import com.negusoft.localauth.persistence.ByteCoding
-import com.negusoft.localauth.persistence.writePropertyMap
+import com.negusoft.localauth.coding.ByteCoding
+import com.negusoft.localauth.coding.writePropertyMap
 import com.negusoft.localauth.preferences.getByteArray
 import com.negusoft.localauth.preferences.putByteArray
 import kotlin.uuid.ExperimentalUuidApi

@@ -1,4 +1,4 @@
-package com.negusoft.localauth.persistence
+package com.negusoft.localauth.coding
 
 import kotlin.experimental.and
 import kotlin.experimental.or

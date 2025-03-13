@@ -3,6 +3,8 @@ package com.negusoft.localauth.core
 import android.content.Context
 import androidx.core.content.edit
 import androidx.fragment.app.FragmentActivity
+import com.negusoft.localauth.coding.encode
+import com.negusoft.localauth.coding.restore
 import com.negusoft.localauth.vault.EncryptedValue
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.lock.BiometricLock

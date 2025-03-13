@@ -67,6 +67,7 @@ object Keys {
          * Decode the private key encoded in X509 format (eg. returned by PublicKey.getEncoded()).
          * If the algorithm is not specified, it will default to KeyProperties.KEY_ALGORITHM_RSA.
          */
+        // TODO this is no longer related to RSA only, move elsewhere
         fun decodePublicKey(bytes: ByteArray, algorithm: String? = null): PublicKey? {
             val resolvedAlgorithm = algorithm ?: KeyProperties.KEY_ALGORITHM_RSA
             val keySpec = X509EncodedKeySpec(bytes)

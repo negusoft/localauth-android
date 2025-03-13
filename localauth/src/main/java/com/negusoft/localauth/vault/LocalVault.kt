@@ -2,9 +2,9 @@ package com.negusoft.localauth.vault
 
 import com.negusoft.localauth.crypto.Ciphers
 import com.negusoft.localauth.crypto.Keys
-import com.negusoft.localauth.persistence.ByteCoding
-import com.negusoft.localauth.persistence.readStringProperty
-import com.negusoft.localauth.persistence.writeProperty
+import com.negusoft.localauth.coding.ByteCoding
+import com.negusoft.localauth.coding.readStringProperty
+import com.negusoft.localauth.coding.writeProperty
 import com.negusoft.localauth.lock.LockException
 import com.negusoft.localauth.lock.LockProtected
 import com.negusoft.localauth.lock.LockRegister
@@ -26,8 +26,6 @@ class LocalVault private constructor(
     val keyType: String?
 ): LockProtected {
     companion object {
-        private const val ENCODING_VERSION: Byte = 0x00
-
         fun create(keyPair: KeyPair): OpenVault {
             val vault = LocalVault(keyPair.public, null)
             return OpenVault(vault, keyPair.private)
@@ -47,21 +45,6 @@ class LocalVault private constructor(
         fun create(config: (OpenVault) -> Unit): LocalVault = create(Keys.RSA.generateKeyPair(), config)
 
         fun restore(publicKey: PublicKey, keyType: String? = null) = LocalVault(publicKey, keyType)
-
-        @Throws(LocalVaultException::class)
-        fun restore(encoded: ByteArray): LocalVault {
-            val decoder = ByteCoding.decode(encoded)
-            if (!decoder.checkValueEquals(byteArrayOf(ENCODING_VERSION)))
-                throw LocalVaultException("Wrong encoding version (${encoded[0]}).")
-
-            val keyType = decoder.readStringProperty()
-            assert(keyType.isNullOrBlank()) { "Invalid key type." }
-
-            val keyBytes = decoder.readFinal()
-            val publicKey = Keys.RSA.decodePublicKey(keyBytes) ?: throw LocalVaultException("Failed to decode public key")
-
-            return LocalVault(publicKey, keyType)
-        }
     }
 
     class OpenVault(
@@ -151,10 +134,5 @@ class LocalVault private constructor(
         } catch (e: Throwable) {
             throw LocalVaultException("Failed to encrypt data.", e)
         }
-    }
-
-    fun encode() = ByteCoding.encode(byteArrayOf(ENCODING_VERSION)) {
-        writeProperty(keyType)
-        writeValue(publicKey.encoded)
     }
 }

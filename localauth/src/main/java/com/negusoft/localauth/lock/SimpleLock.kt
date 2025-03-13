@@ -20,24 +20,9 @@ class SimpleLock private constructor(
         val encryptionMethod: String?,
         val encryptedSecret: ByteArray
     ) {
-        companion object {
-//            private const val ENCODING_VERSION: Byte = 0x00
-
-            /**
-             * Restore the token from the data produced by 'encode()'.
-             * @throws LockException on failure.
-             */
-            @Throws(LockException::class)
-            fun restore(encoded: ByteArray) = KeyStoreLockCommons.Token.restore(encoded) { alias, method, encryptedSecret ->
-                Token(alias, method, encryptedSecret)
-            }
-
-        }
+        companion object
 
         val lock: SimpleLock get() = restore(keystoreAlias, encryptionMethod)
-
-        /** Encode the token to bytes. */
-        fun encode() = KeyStoreLockCommons.Token.encode(keystoreAlias, encryptionMethod, encryptedSecret)
     }
 
     companion object {

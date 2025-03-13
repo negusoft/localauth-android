@@ -8,12 +8,12 @@ import kotlinx.serialization.Serializable
 import java.security.KeyPair
 import javax.crypto.Cipher
 
-@Deprecated("deleteme")
-class BiometricLockException(
-    message: String, val reason: Reason = Reason.ERROR, cause: Throwable? = null
-) : LockException(message, cause) {
-    enum class Reason { CANCELLATION, ERROR }
-}
+//@Deprecated("deleteme")
+//class BiometricLockException(
+//    message: String, val reason: Reason = Reason.ERROR, cause: Throwable? = null
+//) : LockException(message, cause) {
+//    enum class Reason { CANCELLATION, ERROR }
+//}
 class BiometricPromptCancelledException(message: String) : LockException(message)
 
 class BiometricLock(
@@ -27,23 +27,9 @@ class BiometricLock(
         val encryptionMethod: String?,
         val encryptedSecret: ByteArray
     ) {
-        companion object {
-            private const val ENCODING_VERSION: Byte = 0x00
-
-            /**
-             * Restore the token from the data produced by 'encode()'.
-             * @throws BiometricLockException on failure.
-             */
-            @Throws(LockException::class)
-            fun restore(encoded: ByteArray) = KeyStoreLockCommons.Token.restore(encoded) { alias, method, encryptedSecret ->
-                Token(alias, method, encryptedSecret)
-            }
-        }
+        companion object
 
         val lock: BiometricLock get() = restore(keystoreAlias, encryptionMethod)
-
-        /** Encode the token to bytes. */
-        fun encode() = KeyStoreLockCommons.Token.encode(keystoreAlias, encryptionMethod, encryptedSecret)
     }
 
     companion object {
@@ -108,7 +94,7 @@ suspend fun LockProtected.open(
     val lock = BiometricLock.restore(token)
     lock.unlock(token, authenticator)
 }
-@Throws(BiometricLockException::class, LocalVaultException::class)
+@Throws(LockException::class, LocalVaultException::class)
 suspend fun LockProtected.open(
     token: BiometricLock.Token,
     activity: FragmentActivity

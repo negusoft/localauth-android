@@ -1,6 +1,12 @@
 package com.negusoft.localauth
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.negusoft.localauth.authenticator.LocalAuthenticator
+import com.negusoft.localauth.authenticator.authenticatedWithPasswordLock
+import com.negusoft.localauth.authenticator.initialize
+import com.negusoft.localauth.authenticator.registerPasswordLock
+import com.negusoft.localauth.coding.encode
+import com.negusoft.localauth.coding.restore
 import com.negusoft.localauth.lock.LockException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -22,16 +28,18 @@ class LocalAuthenticatorTest {
         val authenticator = LocalAuthenticator.create()
 
         authenticator.initialize("test", Adapter::encode).apply {
-            registerPassword("password", "11111")
+            registerPasswordLock("password", "11111")
         }
         authenticator.updateSecretProperty("testProperty", "secret_property".toByteArray())
         authenticator.updatePublicProperty("testProperty", "public_property".toByteArray())
 
-        val secret = authenticator.authenticatedSecret("11111", Adapter::decode)
+        val secret = authenticator.authenticatedWithPasswordLock("password", "11111") {
+            Adapter.decode(secret())
+        }
         assertEquals(secret, "test")
 
         val secretProperty = authenticator
-            .authenticated("11111") { secretProperty("testProperty") }
+            .authenticatedWithPasswordLock("password", "11111") { secretProperty("testProperty") }
             .decodeToString()
         assertEquals(secretProperty, "secret_property")
 
@@ -47,23 +55,27 @@ class LocalAuthenticatorTest {
         val authenticator = LocalAuthenticator.create()
 
         authenticator.initialize("test", Adapter::encode).apply {
-            registerPassword("password", "11111")
+            registerPasswordLock("password", "11111")
         }
 
-        authenticator.authenticated("11111") {
+        authenticator.authenticatedWithPasswordLock("password", "11111") {
             edit {
-                registerPassword("password", "22222")
+                registerPasswordLock("password", "22222")
             }
         }
 
         try {
-            authenticator.authenticatedSecret("11111")
+            authenticator.authenticatedWithPasswordLock("password", "11111") {
+                fail("Should have thrown an exception")
+            }
             fail("Should have thrown an exception")
         } catch (e: LockException) {
             // Expected
         }
 
-        val secret = authenticator.authenticatedSecret("22222", Adapter::decode)
+        val secret = authenticator.authenticatedWithPasswordLock("password", "22222") {
+            Adapter.decode(secret())
+        }
         assertEquals(secret, "test")
     }
 
@@ -72,18 +84,20 @@ class LocalAuthenticatorTest {
     fun storeAndRestoreAuthenticator() {
         val encodedAuthenticator = LocalAuthenticator.create().apply {
             initialize("test", Adapter::encode).apply {
-                registerPassword("password", "11111")
+                registerPasswordLock("password", "11111")
             }
             updateSecretProperty("testProperty", "secret_property".toByteArray())
             updatePublicProperty("testProperty", "public_property".toByteArray())
         }.encode()
 
         LocalAuthenticator.restore(encodedAuthenticator).let { decodedAuthenticator ->
-            val secret = decodedAuthenticator.authenticatedSecret("11111", Adapter::decode)
+            val secret = decodedAuthenticator.authenticatedWithPasswordLock("password", "11111") {
+                Adapter.decode(secret())
+            }
             assertEquals(secret, "test")
 
             val secretProperty = decodedAuthenticator
-                .authenticated("11111") { secretProperty("testProperty") }
+                .authenticatedWithPasswordLock("password", "11111") { secretProperty("testProperty") }
                 .decodeToString()
             assertEquals(secretProperty, "secret_property")
 
@@ -99,7 +113,7 @@ class LocalAuthenticatorTest {
     fun serializeAndDeserializeAuthenticator() {
         val authenticator = LocalAuthenticator.create().apply {
             initialize("test", Adapter::encode).apply {
-                registerPassword("password", "11111")
+                registerPasswordLock("password", "11111")
             }
             updateSecretProperty("testProperty", "secret_property".toByteArray())
             updatePublicProperty("testProperty", "public_property".toByteArray())
@@ -107,11 +121,13 @@ class LocalAuthenticatorTest {
         val encodedAuthenticator = Json.encodeToString(authenticator)
 
         Json.decodeFromString<LocalAuthenticator>(encodedAuthenticator).let { decodedAuthenticator ->
-            val secret = decodedAuthenticator.authenticatedSecret("11111", Adapter::decode)
+            val secret = decodedAuthenticator.authenticatedWithPasswordLock("password", "11111") {
+                Adapter.decode(secret())
+            }
             assertEquals(secret, "test")
 
             val secretProperty = decodedAuthenticator
-                .authenticated("11111") { secretProperty("testProperty") }
+                .authenticatedWithPasswordLock("password", "11111") { secretProperty("testProperty") }
                 .decodeToString()
             assertEquals(secretProperty, "secret_property")
 

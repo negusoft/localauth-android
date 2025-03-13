@@ -4,8 +4,9 @@ import android.content.Context
 import androidx.core.content.edit
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.negusoft.localauth.coding.encode
+import com.negusoft.localauth.coding.restore
 import com.negusoft.localauth.vault.LocalVault
-import com.negusoft.localauth.lock.BiometricLockException
 import com.negusoft.localauth.lock.BiometricLock
 import com.negusoft.localauth.lock.LockException
 import com.negusoft.localauth.lock.PinLock
@@ -114,8 +115,7 @@ class VaultTest {
             try {
                 vault.open(biometricLockToken) { c: Cipher -> c }
                 fail("Should have thrown")
-            } catch (e: BiometricLockException) {
-                assert(e.reason == BiometricLockException.Reason.ERROR)
+            } catch (e: LockException) {
                 val cause = e.cause ?: error("No cause")
                 assert(cause is IllegalBlockSizeException)
             }

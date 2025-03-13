@@ -1,5 +1,9 @@
 package com.negusoft.localauth.persistence
 
+import com.negusoft.localauth.coding.ByteCoding
+import com.negusoft.localauth.coding.ByteCodingException
+import com.negusoft.localauth.coding.SizeCoder
+import com.negusoft.localauth.coding.writePropertyMap
 import org.junit.Test
 
 import org.junit.Assert.*

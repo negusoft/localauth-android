@@ -1,14 +1,11 @@
-package com.negusoft.localauth
+package com.negusoft.localauth.authenticator
 
 import androidx.fragment.app.FragmentActivity
-import com.negusoft.localauth.LocalAuthenticator.Editor
-import com.negusoft.localauth.LocalAuthenticator.Session
-import com.negusoft.localauth.LocalAuthenticator.Unlockers
-import com.negusoft.localauth.persistence.ByteCoding
-import com.negusoft.localauth.persistence.ByteCodingException
-import com.negusoft.localauth.persistence.readStringProperty
-import com.negusoft.localauth.persistence.writeProperty
-import com.negusoft.localauth.persistence.writePropertyMap
+import com.negusoft.localauth.authenticator.LocalAuthenticator.Editor
+import com.negusoft.localauth.authenticator.LocalAuthenticator.Session
+import com.negusoft.localauth.authenticator.LocalAuthenticator.Unlockers
+import com.negusoft.localauth.coding.encode
+import com.negusoft.localauth.coding.restore
 import com.negusoft.localauth.vault.EncryptedValue
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.lock.BiometricLock
@@ -38,44 +35,19 @@ class LocalAuthenticatorException(message: String, cause: Throwable? = null) : E
  *
  */
 @Serializable
-class LocalAuthenticator private constructor(
+class LocalAuthenticator internal constructor(
     val id: String = "local_authenticator",
-    private var vault: LocalVault? = null,
-    private var secretEncrypted: EncryptedValue? = null,
-    private val secretPropertyRegistry: MutableMap<String, EncryptedValue> = mutableMapOf(),
-    private val publicPropertyRegistry: MutableMap<String, ByteArray> = mutableMapOf(),
-    private val lockRegistry: MutableMap<String, EncodedLockToken> = mutableMapOf()
+    internal var vault: LocalVault? = null,
+    internal var secretEncrypted: EncryptedValue? = null,
+    internal val secretPropertyRegistry: MutableMap<String, EncryptedValue> = mutableMapOf(),
+    internal val publicPropertyRegistry: MutableMap<String, ByteArray> = mutableMapOf(),
+    internal val lockRegistry: MutableMap<String, EncodedLockToken> = mutableMapOf()
 ) {
 
     companion object {
 
-        private const val ENCODING_VERSION: Byte = 0x00
-
         /** Create an empty Authenticator */
         fun create() = LocalAuthenticator()
-
-        /** Restore an existing Authenticator from the data produced by 'encode()'. */
-        fun restore(
-            encoded: ByteArray
-        ): LocalAuthenticator {
-            val decoder = ByteCoding.decode(encoded)
-            if (!decoder.checkValueEquals(byteArrayOf(ENCODING_VERSION))) {
-                throw ByteCodingException("Wrong encoding version (${encoded[0]}).")
-            }
-            val id = decoder.readStringProperty() ?: throw ByteCodingException("Failed to decode 'id'.")
-            val vault = decoder.readProperty()?.let { LocalVault.restore(it) } ?: throw ByteCodingException("Failed to decode vault.")
-            val secretEncrypted = decoder.readProperty()?.let(::EncryptedValue)
-            val secretPropertyRegistry = decoder.readPropertyMap()
-                .mapValues { EncryptedValue(it.value) }
-                .toMutableMap()
-            val publicPropertyRegistry = decoder.readPropertyMap()
-                .toMutableMap()
-            val lockRegistry = decoder.readPropertyMap()
-                .mapValues { EncodedLockToken(it.value) }
-                .toMutableMap()
-
-            return LocalAuthenticator(id, vault, secretEncrypted, secretPropertyRegistry, publicPropertyRegistry, lockRegistry)
-        }
     }
 
     inner class Editor(
@@ -294,23 +266,11 @@ class LocalAuthenticator private constructor(
         lockRegistry.clear()
     }
 
-    /** Encode the authenticator to bytes. */
-    fun encode(): ByteArray {
-        return ByteCoding.encode(prefix = byteArrayOf(ENCODING_VERSION)) {
-            writeProperty(id)
-            writeProperty(vault?.encode())
-            writeProperty(secretEncrypted?.bytes)
-            writePropertyMap(secretPropertyRegistry.mapValues { it.value.bytes })
-            writePropertyMap(publicPropertyRegistry)
-            writePropertyMap(lockRegistry.mapValues { it.value.bytes })
-        }
-    }
-
 }
 
 fun <T> LocalAuthenticator.initialize(secret: T?, encoder: (T) -> ByteArray): Editor {
-    val encoded = secret?.let(encoder)
-    return initialize(encoded)
+    val encodedSecret = secret?.let(encoder)
+    return initialize(encodedSecret)
 }
 fun <T> LocalAuthenticator.updateSecret(secret: T, encoder: (T) -> ByteArray) {
     updateSecret(encoder(secret))
@@ -318,82 +278,3 @@ fun <T> LocalAuthenticator.updateSecret(secret: T, encoder: (T) -> ByteArray) {
 fun <T> LocalAuthenticator.Session.secret(decoder: (ByteArray) -> T): T {
     return decoder(secret())
 }
-
-// Locks: Password ---------
-
-fun LocalAuthenticator.Editor.registerPassword(lockId: String, password: String) {
-    registerLock(
-        lockId = lockId,
-        encoder = { EncodedLockToken(it.encode()) }
-    ) { authenticator, register ->
-        register.registerPinLock(password, "${authenticator.id}_$lockId")
-    }
-}
-fun LocalAuthenticator.Unlockers.withPassword(password: String) = object : LocalAuthenticator.Unlocker<PinLock.Token> {
-    override fun decode(bytes: ByteArray) = PinLock.Token.restore(bytes)
-    override fun unlock(
-        local: LocalAuthenticator,
-        token: PinLock.Token,
-        protected: LockProtected
-    ): LocalVault.OpenVault {
-        return protected.open(token, password)
-    }
-}
-//fun LocalAuthenticator.authenticateWithBiometric(lockId: String)
-//= authenticate(lockId, LocalAuthenticator.Unlockers.withPassword(password))
-
-// Locks: Biometric ---------
-
-fun LocalAuthenticator.Editor.registerBiometric(lockId: String) {
-    registerLock(
-        lockId = lockId,
-        encoder = { EncodedLockToken(it.encode()) }
-    ) { authenticator, register ->
-        register.registerBiometricLock("${authenticator.id}_$lockId")
-    }
-}
-fun LocalAuthenticator.Unlockers.withBiometric(authenticator: suspend (Cipher) -> Cipher) = object : LocalAuthenticator.UnlockerSuspending<BiometricLock.Token> {
-    override fun decode(bytes: ByteArray) = BiometricLock.Token.restore(bytes)
-    override suspend fun unlock(
-        local: LocalAuthenticator,
-        token: BiometricLock.Token,
-        protected: LockProtected
-    ): LocalVault.OpenVault {
-        return protected.open(token, authenticator)
-    }
-}
-fun LocalAuthenticator.Unlockers.withBiometric(activity: FragmentActivity) = object : LocalAuthenticator.UnlockerSuspending<BiometricLock.Token> {
-    override fun decode(bytes: ByteArray) = BiometricLock.Token.restore(bytes)
-    override suspend fun unlock(
-        local: LocalAuthenticator,
-        token: BiometricLock.Token,
-        protected: LockProtected
-    ): LocalVault.OpenVault {
-        return protected.open(token, activity)
-    }
-}
-suspend fun LocalAuthenticator.authenticateWithBiometric(lockId: String, authenticator: suspend (Cipher) -> Cipher)
-        = authenticateSuspending(lockId, LocalAuthenticator.Unlockers.withBiometric(authenticator))
-suspend fun LocalAuthenticator.authenticateWithBiometric(lockId: String, activity: FragmentActivity)
-        = authenticateSuspending(lockId, LocalAuthenticator.Unlockers.withBiometric(activity))
-
-suspend fun <Result> LocalAuthenticator.authenticatedWithBiometric(lockId: String, authenticator: suspend (Cipher) -> Cipher, session: suspend Session.() -> Result)
-        = authenticatedSuspending(lockId, LocalAuthenticator.Unlockers.withBiometric(authenticator), session)
-suspend fun <Result> LocalAuthenticator.authenticatedWithBiometric(lockId: String, activity: FragmentActivity, session: suspend Session.() -> Result)
-        = authenticatedSuspending(lockId, LocalAuthenticator.Unlockers.withBiometric(activity), session)
-
-
-@Throws
-fun LocalAuthenticator.authenticatedSecret(password: String) =
-    authenticatedSecret("password", Unlockers.withPassword(password))
-
-fun <T> LocalAuthenticator.authenticatedSecret(password: String, decoder: (ByteArray) -> T): T =
-    decoder(authenticatedSecret(password))
-
-@Throws
-fun LocalAuthenticator.authenticate(password: String): Session =
-    authenticate("password", Unlockers.withPassword(password))
-
-@Throws
-fun <T> LocalAuthenticator.authenticated(password: String, session: Session.() -> T): T =
-    authenticated("password", Unlockers.withPassword(password), session)

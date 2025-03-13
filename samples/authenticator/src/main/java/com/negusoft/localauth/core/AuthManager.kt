@@ -4,17 +4,17 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.fragment.app.FragmentActivity
-import com.negusoft.localauth.LocalAuthenticator
-import com.negusoft.localauth.authenticate
-import com.negusoft.localauth.authenticatedSecret
-import com.negusoft.localauth.authenticatedWithBiometric
-import com.negusoft.localauth.initialize
+import com.negusoft.localauth.authenticator.LocalAuthenticator
+import com.negusoft.localauth.authenticator.authenticatedWithBiometricLock
+import com.negusoft.localauth.coding.encode
+import com.negusoft.localauth.coding.restore
+import com.negusoft.localauth.authenticator.initialize
 import com.negusoft.localauth.lock.LockException
 import com.negusoft.localauth.preferences.getByteArray
 import com.negusoft.localauth.preferences.putByteArray
-import com.negusoft.localauth.registerBiometric
-import com.negusoft.localauth.registerPassword
-import com.negusoft.localauth.updateSecret
+import com.negusoft.localauth.authenticator.registerBiometricLock
+import com.negusoft.localauth.authenticator.registerPasswordLock
+import com.negusoft.localauth.authenticator.updateSecret
 import com.negusoft.localauth.utils.mapState
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -113,7 +113,7 @@ class AuthManager(
 
     @Throws(BiometricNotRegisteredException::class, WrongPinCodeException::class, InvalidRefreshTokenException::class)
     suspend fun loginWithBiometric(activity: FragmentActivity) {
-        val refreshTokenEncoded = localAuthenticator.authenticatedWithBiometric(LOCK_BIOMETRIC, activity) { secret() }
+        val refreshTokenEncoded = localAuthenticator.authenticatedWithBiometricLock(LOCK_BIOMETRIC, activity) { secret() }
         val refreshToken = Adapter.decode(refreshTokenEncoded)
         loginWithRefreshToken(refreshToken)
     }
@@ -150,12 +150,12 @@ class AuthManager(
     }
 
     fun enablePinLogin(editor: LocalAuthenticator.Editor, pinCode: String) {
-        editor.registerPassword(LOCK_PASSWORD, pinCode)
+        editor.registerPasswordLock(LOCK_PASSWORD, pinCode)
         save()
     }
 
     fun enableBiometricLogin(editor: LocalAuthenticator.Editor) {
-        editor.registerBiometric(LOCK_BIOMETRIC)
+        editor.registerBiometricLock(LOCK_BIOMETRIC)
         save()
     }
 
@@ -164,7 +164,7 @@ class AuthManager(
         try {
             val session = localAuthenticator.authenticate(currentPassword)
             session.edit {
-                registerBiometric(LOCK_BIOMETRIC)
+                registerBiometricLock(LOCK_BIOMETRIC)
                 save()
             }
         } catch (e: LockException) {
@@ -183,7 +183,7 @@ class AuthManager(
             val session = localAuthenticator.authenticate(current)
             return ChangePassword { newPassword ->
                 session.edit {
-                    registerPassword(LOCK_PASSWORD, newPassword)
+                    registerPasswordLock(LOCK_PASSWORD, newPassword)
                     save()
                 }
             }
