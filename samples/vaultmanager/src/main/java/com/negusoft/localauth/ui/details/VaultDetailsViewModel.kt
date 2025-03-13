@@ -7,10 +7,10 @@ import com.negusoft.localauth.core.OpenVaultModel
 import com.negusoft.localauth.core.SecretValueModel
 import com.negusoft.localauth.core.VaultManager
 import com.negusoft.localauth.core.VaultModel
+import com.negusoft.localauth.lock.BiometricPromptCancelledException
+import com.negusoft.localauth.lock.LockException
 import com.negusoft.localauth.ui.common.ErrorModel
 import com.negusoft.localauth.ui.common.RetryErrorModel
-import com.negusoft.localauth.lock.BiometricLockException
-import com.negusoft.localauth.lock.PinLockException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
@@ -91,7 +91,7 @@ class VaultDetailsViewModel(
         try {
             openVault = vault.value.open(pin)
             isOpen.value = true
-        } catch (e: PinLockException) {
+        } catch (e: LockException) {
             errorWrongPin.value = RetryErrorModel(
                 retry = {
                     unlockWithPinCode()
@@ -125,14 +125,13 @@ class VaultDetailsViewModel(
             try {
                 openVault = vault.value.openBiometric(activity)
                 isOpen.value = true
-            } catch (e: BiometricLockException) {
+            } catch (e: BiometricPromptCancelledException) {
+                // no-op
+            } catch (e: LockException) {
                 e.printStackTrace()
-                when (e.reason) {
-                    BiometricLockException.Reason.CANCELLATION -> return@launch
-                    BiometricLockException.Reason.ERROR -> errorBiometricFailed.value = ErrorModel(
-                        dismiss = { errorBiometricFailed.value = null }
-                    )
-                }
+                errorBiometricFailed.value = ErrorModel(
+                    dismiss = { errorBiometricFailed.value = null }
+                )
             }
         }
     }

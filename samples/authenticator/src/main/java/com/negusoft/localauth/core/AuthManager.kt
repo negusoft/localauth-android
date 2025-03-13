@@ -9,13 +9,13 @@ import com.negusoft.localauth.authenticate
 import com.negusoft.localauth.authenticatedSecret
 import com.negusoft.localauth.authenticatedWithBiometric
 import com.negusoft.localauth.initialize
+import com.negusoft.localauth.lock.LockException
 import com.negusoft.localauth.preferences.getByteArray
 import com.negusoft.localauth.preferences.putByteArray
 import com.negusoft.localauth.registerBiometric
 import com.negusoft.localauth.registerPassword
 import com.negusoft.localauth.updateSecret
 import com.negusoft.localauth.utils.mapState
-import com.negusoft.localauth.lock.PinLockException
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class InvalidUsernameOrPasswordException: Exception("Invalid username or password.")
@@ -106,7 +106,7 @@ class AuthManager(
         try {
             val refreshToken = localAuthenticator.authenticatedSecret(pinCode, Adapter::decode)
             loginWithRefreshToken(refreshToken)
-        } catch (e: PinLockException) {
+        } catch (e: LockException) {
             throw WrongPinCodeException(remainingAttempts = 0)
         }
     }
@@ -167,7 +167,7 @@ class AuthManager(
                 registerBiometric(LOCK_BIOMETRIC)
                 save()
             }
-        } catch (e: PinLockException) {
+        } catch (e: LockException) {
             throw WrongPinCodeException(remainingAttempts = 0)
         }
     }
@@ -187,7 +187,7 @@ class AuthManager(
                     save()
                 }
             }
-        } catch (e: PinLockException) {
+        } catch (e: LockException) {
             throw WrongPinCodeException(remainingAttempts = 0)
         }
     }
