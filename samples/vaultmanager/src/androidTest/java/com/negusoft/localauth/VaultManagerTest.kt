@@ -3,6 +3,7 @@ package com.negusoft.localauth
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.negusoft.localauth.core.VaultManager
+import com.negusoft.localauth.lock.Password
 
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,14 +24,17 @@ class VaultManagerTest {
     fun testCreateEncryptDecrypt() {
         val manager = VaultManager(appContext)
 
-        val vault = manager.createVault("vault1", "12345")
+        val vault = manager.createVault().apply {
+            registerPinLock(Password("12345"))
+        }.vault
+//        val vault = manager.createVault("vault1", "12345")
         val modifiedVault = manager.newSecretValue(vault, "key", "value")
 
         assertTrue(modifiedVault.secretValues.size == 1)
         assertTrue(modifiedVault.pinToken != null)
 
         val secretValueRef = modifiedVault.secretValues[0]
-        val secretValue = modifiedVault.readValueWithPin(secretValueRef, "12345")
+        val secretValue = modifiedVault.readValueWithPin(secretValueRef, Password("12345"))
 
         assertTrue(secretValue == "value")
     }

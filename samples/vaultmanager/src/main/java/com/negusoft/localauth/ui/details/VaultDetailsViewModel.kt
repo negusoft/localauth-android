@@ -9,6 +9,7 @@ import com.negusoft.localauth.core.VaultManager
 import com.negusoft.localauth.core.VaultModel
 import com.negusoft.localauth.lock.BiometricPromptCancelledException
 import com.negusoft.localauth.lock.LockException
+import com.negusoft.localauth.lock.Password
 import com.negusoft.localauth.ui.common.ErrorModel
 import com.negusoft.localauth.ui.common.RetryErrorModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,7 +66,7 @@ class VaultDetailsViewModel(
         )
     }
 
-    private fun doEnablePinLock(pin: String) {
+    private fun doEnablePinLock(pin: Password) {
         val openVault = openVault ?: error("Vault is not open")
         openVault.registerPinLock(pin)
         saveRequired.value = true
@@ -87,7 +88,7 @@ class VaultDetailsViewModel(
         )
     }
 
-    private fun doUnlockWithPinCode(pin: String) {
+    private fun doUnlockWithPinCode(pin: Password) {
         try {
             openVault = vault.value.open(pin)
             isOpen.value = true
@@ -186,12 +187,12 @@ class VaultDetailsViewModel(
 
 class PinInputModel(
     val type: Type,
-    private val onInput: (String) -> Unit,
+    private val onInput: (Password) -> Unit,
     private val onCancel: () -> Unit
 ) {
     enum class Type { REGISTER, UNLOCK }
     val input = MutableStateFlow("")
-    fun confirm() { onInput(input.value) }
+    fun confirm() { onInput(Password(input.value)) }
     fun cancel() { onCancel() }
 }
 

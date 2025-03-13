@@ -5,7 +5,9 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.fragment.app.FragmentActivity
 import com.negusoft.localauth.authenticator.LocalAuthenticator
+import com.negusoft.localauth.authenticator.authenticateWithPasswordLock
 import com.negusoft.localauth.authenticator.authenticatedWithBiometricLock
+import com.negusoft.localauth.authenticator.authenticatedWithPasswordLock
 import com.negusoft.localauth.coding.encode
 import com.negusoft.localauth.coding.restore
 import com.negusoft.localauth.authenticator.initialize
@@ -15,6 +17,7 @@ import com.negusoft.localauth.preferences.putByteArray
 import com.negusoft.localauth.authenticator.registerBiometricLock
 import com.negusoft.localauth.authenticator.registerPasswordLock
 import com.negusoft.localauth.authenticator.updateSecret
+import com.negusoft.localauth.lock.Password
 import com.negusoft.localauth.utils.mapState
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -51,7 +54,7 @@ class AuthManager(
         private val manager: AuthManager,
         private val editor: LocalAuthenticator.Editor
     ) {
-        fun registerPinLock(pinCode: String) {
+        fun registerPinLock(pinCode: Password) {
             manager.enablePinLogin(editor, pinCode)
         }
         fun enableBiometricLogin() {
@@ -59,8 +62,8 @@ class AuthManager(
         }
     }
 
-    class ChangePassword(private val onChange: (String) -> Unit) {
-        fun change(newPassword: String) = onChange(newPassword)
+    class ChangePassword(private val onChange: (Password) -> Unit) {
+        fun change(newPassword: Password) = onChange(newPassword)
     }
 
     private val authenticator = MockAuthenticator(prefs)
@@ -102,9 +105,11 @@ class AuthManager(
     }
 
     @Throws(PinNotRegisteredException::class, WrongPinCodeException::class, InvalidRefreshTokenException::class)
-    fun login(pinCode: String) {
+    fun login(pinCode: Password) {
         try {
-            val refreshToken = localAuthenticator.authenticatedSecret(pinCode, Adapter::decode)
+            val refreshToken = localAuthenticator.authenticatedWithPasswordLock(LOCK_PASSWORD, pinCode) {
+                Adapter.decode(secret())
+            }
             loginWithRefreshToken(refreshToken)
         } catch (e: LockException) {
             throw WrongPinCodeException(remainingAttempts = 0)
@@ -149,7 +154,7 @@ class AuthManager(
         return AuthSetup(this, editor)
     }
 
-    fun enablePinLogin(editor: LocalAuthenticator.Editor, pinCode: String) {
+    fun enablePinLogin(editor: LocalAuthenticator.Editor, pinCode: Password) {
         editor.registerPasswordLock(LOCK_PASSWORD, pinCode)
         save()
     }
@@ -160,9 +165,9 @@ class AuthManager(
     }
 
     @Throws
-    fun enableBiometricLogin(currentPassword: String) {
+    fun enableBiometricLogin(currentPassword: Password) {
         try {
-            val session = localAuthenticator.authenticate(currentPassword)
+            val session = localAuthenticator.authenticateWithPasswordLock(LOCK_PASSWORD, currentPassword)
             session.edit {
                 registerBiometricLock(LOCK_BIOMETRIC)
                 save()
@@ -178,9 +183,9 @@ class AuthManager(
     }
 
     @Throws
-    fun changePassword(current: String): ChangePassword {
+    fun changePassword(current: Password): ChangePassword {
         try {
-            val session = localAuthenticator.authenticate(current)
+            val session = localAuthenticator.authenticateWithPasswordLock(LOCK_PASSWORD, current)
             return ChangePassword { newPassword ->
                 session.edit {
                     registerPasswordLock(LOCK_PASSWORD, newPassword)

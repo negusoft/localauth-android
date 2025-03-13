@@ -41,6 +41,7 @@ import com.negusoft.localauth.core.AuthManager
 import com.negusoft.localauth.core.InvalidRefreshTokenException
 import com.negusoft.localauth.core.InvalidUsernameOrPasswordException
 import com.negusoft.localauth.core.WrongPinCodeException
+import com.negusoft.localauth.lock.Password
 import com.negusoft.localauth.ui.common.PasswordInputDialog
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -75,7 +76,7 @@ object LoginView {
         fun loginWithPin() {
             try {
                 setErrorMessage(null)
-                authManager.login(pinCode)
+                authManager.login(Password(pinCode))
                 onLogin()
             } catch (e: WrongPinCodeException) {
                 setPinCode("")

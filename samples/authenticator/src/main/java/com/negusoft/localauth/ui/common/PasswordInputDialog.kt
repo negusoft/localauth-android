@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.tooling.preview.Preview
+import com.negusoft.localauth.lock.Password
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
 
 object PasswordInputDialog {
@@ -17,7 +18,7 @@ object PasswordInputDialog {
     operator fun invoke(
         title: String,
         onDismissRequest: () -> Unit,
-        confirm: (value: String) -> Unit
+        confirm: (value: Password) -> Unit
     ) {
         val valueField = remember { mutableStateOf("") }
         AlertDialog(
@@ -35,7 +36,7 @@ object PasswordInputDialog {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        confirm(valueField.value)
+                        confirm(Password(valueField.value))
                         onDismissRequest()
                     },
                     content = { Text("Confirm") }

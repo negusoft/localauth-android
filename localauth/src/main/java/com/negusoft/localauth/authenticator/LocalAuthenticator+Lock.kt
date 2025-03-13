@@ -7,6 +7,7 @@ import com.negusoft.localauth.coding.restore
 import com.negusoft.localauth.lock.BiometricLock
 import com.negusoft.localauth.lock.EncodedLockToken
 import com.negusoft.localauth.lock.LockProtected
+import com.negusoft.localauth.lock.Password
 import com.negusoft.localauth.lock.PinLock
 import com.negusoft.localauth.lock.SimpleLock
 import com.negusoft.localauth.lock.open
@@ -46,7 +47,7 @@ fun <Result> LocalAuthenticator.authenticatedWithSimpleLock(lockId: String, sess
 
 /************************** PIN LOCK ************************************/
 
-fun LocalAuthenticator.Editor.registerPasswordLock(lockId: String, password: String) {
+fun LocalAuthenticator.Editor.registerPasswordLock(lockId: String, password: Password) {
     registerLock(
         lockId = lockId,
         encoder = { EncodedLockToken(it.encode()) }
@@ -54,7 +55,7 @@ fun LocalAuthenticator.Editor.registerPasswordLock(lockId: String, password: Str
         register.registerPinLock(password, "${authenticator.id}_$lockId")
     }
 }
-fun LocalAuthenticator.Unlockers.passwordLock(password: String) = object :
+fun LocalAuthenticator.Unlockers.passwordLock(password: Password) = object :
     LocalAuthenticator.Unlocker<PinLock.Token> {
     override fun decode(bytes: ByteArray) = PinLock.Token.restore(bytes)
     override fun unlock(
@@ -66,10 +67,10 @@ fun LocalAuthenticator.Unlockers.passwordLock(password: String) = object :
     }
 }
 
-fun LocalAuthenticator.authenticateWithPasswordLock(lockId: String, password: String)
+fun LocalAuthenticator.authenticateWithPasswordLock(lockId: String, password: Password)
         = authenticate(lockId, LocalAuthenticator.Unlockers.passwordLock(password))
 
-fun <Result> LocalAuthenticator.authenticatedWithPasswordLock(lockId: String, password: String, session: Session.() -> Result)
+fun <Result> LocalAuthenticator.authenticatedWithPasswordLock(lockId: String, password: Password, session: Session.() -> Result)
         = authenticated(lockId, LocalAuthenticator.Unlockers.passwordLock(password), session)
 
 /************************** BIOMETRIC LOCK ************************************/

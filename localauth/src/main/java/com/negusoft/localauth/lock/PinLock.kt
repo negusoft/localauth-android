@@ -9,6 +9,9 @@ import javax.crypto.SecretKey
 
 class WrongPinException : LockException("Wrong PIN code.")
 
+@JvmInline
+value class Password(val value: String)
+
 class PinLock private constructor(
     key: SecretKey,
     keyIdentifier: String,
@@ -56,19 +59,19 @@ class PinLock private constructor(
         fun restore(token: Token) = restore(token.keystoreAlias, token.encryptionMethod)
     }
 
-    fun lock(secret: ByteArray, password: String): Token {
-        val secretPasswordEncrypted = Ciphers.AES_GCM_NoPadding.encryptWithPassword(password, secret)
+    fun lock(secret: ByteArray, password: Password): Token {
+        val secretPasswordEncrypted = Ciphers.AES_GCM_NoPadding.encryptWithPassword(password.value, secret)
         return super.lock(secretPasswordEncrypted) { alias, method, encryptedSecret ->
             Token(alias, method, encryptedSecret)
         }
     }
 
-    fun unlock(token: Token, password: String): ByteArray = super.unlock(
+    fun unlock(token: Token, password: Password): ByteArray = super.unlock(
         encryptedSecret = token.encryptedSecret,
         transformation = { secretPasswordEncrypted ->
             try {
                 Ciphers.AES_GCM_NoPadding
-                    .decryptWithPassword(password, secretPasswordEncrypted)
+                    .decryptWithPassword(password.value, secretPasswordEncrypted)
                     ?: throw WrongPinException()
             } catch (e: Throwable) {
                 throw WrongPinException()
@@ -82,12 +85,12 @@ class PinLock private constructor(
  * Throws VaultLockException (or a a subclass of it) on lock failure.
  * It might throw a VaultException if an invalid key was decoded.
  */
-fun LockProtected.open(token: PinLock.Token, password: String) = open {
+fun LockProtected.open(token: PinLock.Token, password: Password) = open {
     val lock = PinLock.restore(token)
     lock.unlock(token, password)
 }
 fun LockRegister.registerPinLock(
-    password: String, keystoreAlias: String, useStrongBoxWhenAvailable: Boolean = true
+    password: Password, keystoreAlias: String, useStrongBoxWhenAvailable: Boolean = true
 ): PinLock.Token = registerLock { privateKeyEncoded ->
     val lock = PinLock.create(keystoreAlias, useStrongBoxWhenAvailable)
     lock.lock(privateKeyEncoded, password)

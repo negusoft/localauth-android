@@ -43,6 +43,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.negusoft.localauth.core.AuthManager
 import com.negusoft.localauth.core.WrongPinCodeException
+import com.negusoft.localauth.lock.Password
 import com.negusoft.localauth.ui.common.PasswordInputDialog
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
 
@@ -85,7 +86,7 @@ object AccountView {
         val oldPasswordDialog = remember { mutableStateOf(false) }
         val changePasswordDialog = remember { mutableStateOf<AuthManager.ChangePassword?>(null) }
 
-        fun doChangePassword(password: String) {
+        fun doChangePassword(password: Password) {
             try {
                 changePasswordDialog.value = this.changePassword(password)
             } catch (e: WrongPinCodeException) {
@@ -168,7 +169,7 @@ object AccountView {
     @Composable
     fun NewPasswordDialog(
         onDismissRequest: () -> Unit,
-        confirm: (value: String) -> Unit
+        confirm: (value: Password) -> Unit
     ) {
         val valueField = remember { mutableStateOf("") }
         val confirmationField = remember { mutableStateOf("") }
@@ -202,7 +203,7 @@ object AccountView {
                         if (valueField.value != confirmationField.value) {
                             return@TextButton
                         }
-                        confirm(valueField.value)
+                        confirm(Password(valueField.value))
                         onDismissRequest()
                     },
                     content = { Text("Confirm") }

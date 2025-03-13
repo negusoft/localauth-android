@@ -9,6 +9,7 @@ import com.negusoft.localauth.coding.restore
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.lock.BiometricLock
 import com.negusoft.localauth.lock.LockException
+import com.negusoft.localauth.lock.Password
 import com.negusoft.localauth.lock.PinLock
 import com.negusoft.localauth.lock.SimpleLock
 import com.negusoft.localauth.lock.open
@@ -45,7 +46,7 @@ class VaultTest {
     fun createEncryptDecrypt() {
         lateinit var pinLockToken: PinLock.Token
         val vault = LocalVault.create { openVault ->
-            pinLockToken = openVault.registerPinLock("12345", "lockId")
+            pinLockToken = openVault.registerPinLock(Password("12345"), "lockId")
         }
 
         val encoded = vault.encode()
@@ -54,7 +55,7 @@ class VaultTest {
         val secret = "Hello, Vault!".toByteArray()
         val encryptedSecret = restored.encrypt(secret)
 
-        val openVault = restored.open(pinLockToken, "12345")
+        val openVault = restored.open(pinLockToken, Password("12345"))
         val decryptedSecret = openVault.decrypt(encryptedSecret)
 
         assert(decryptedSecret.contentEquals("Hello, Vault!".toByteArray()))
@@ -64,7 +65,7 @@ class VaultTest {
     fun serializeDeserialize() {
         lateinit var pinLockToken: PinLock.Token
         val vault = LocalVault.create { openVault ->
-            pinLockToken = openVault.registerPinLock("12345", "lockId")
+            pinLockToken = openVault.registerPinLock(Password("12345"), "lockId")
         }
 
         val encoded = Json.encodeToString(vault)
@@ -73,7 +74,7 @@ class VaultTest {
         val secret = "Hello, Vault!".toByteArray()
         val encryptedSecret = restored.encrypt(secret)
 
-        val openVault = restored.open(pinLockToken, "12345")
+        val openVault = restored.open(pinLockToken, Password("12345"))
         val decryptedSecret = openVault.decrypt(encryptedSecret)
 
         assert(decryptedSecret.contentEquals("Hello, Vault!".toByteArray()))
@@ -93,14 +94,14 @@ class VaultTest {
     fun testPinLock() {
         lateinit var pinLockToken: PinLock.Token
         val vault = LocalVault.create { openVault ->
-            pinLockToken = openVault.registerPinLock("12345", "lockId")
+            pinLockToken = openVault.registerPinLock(Password("12345"), "lockId")
         }
 
         assertThrows(LockException::class.java) {
-            vault.open(pinLockToken, "wrong")
+            vault.open(pinLockToken, Password("wrong"))
         }
 
-        vault.open(pinLockToken, "12345")
+        vault.open(pinLockToken, Password("12345"))
     }
 
     @Test
