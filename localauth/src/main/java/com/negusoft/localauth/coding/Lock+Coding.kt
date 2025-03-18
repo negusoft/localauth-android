@@ -2,7 +2,7 @@ package com.negusoft.localauth.coding
 
 import com.negusoft.localauth.lock.BiometricLock
 import com.negusoft.localauth.lock.KeyStoreLockCommons.TokenAdapter
-import com.negusoft.localauth.lock.PinLock
+import com.negusoft.localauth.lock.PasswordLock
 import com.negusoft.localauth.lock.SimpleLock
 
 private const val ENCODING: Byte = 0x00
@@ -46,18 +46,18 @@ fun SimpleLock.Token.Companion.restore(encoded: ByteArray) = restoreKeyStoreLock
 fun SimpleLock.Token.encode(): ByteArray = encodeKeyStoreLockToken(keystoreAlias, encryptionMethod, encryptedSecret)
 
 
-/************************** PIN LOCK ************************************/
+/************************** PASSWORD LOCK ************************************/
 
 /**
  * Restore the token from the data produced by 'encode()'.
  * @throws ByteCodingException on failure.
  */
 @Throws(ByteCodingException::class)
-fun PinLock.Token.Companion.restore(encoded: ByteArray) = restoreKeyStoreLockToken(encoded) { alias, method, encryptedSecret ->
-    PinLock.Token(alias, method, encryptedSecret)
+fun PasswordLock.Token.Companion.restore(encoded: ByteArray) = restoreKeyStoreLockToken(encoded) { alias, method, encryptedSecret ->
+    PasswordLock.Token(alias, method, encryptedSecret)
 }
 /** Encode the token to bytes. */
-fun PinLock.Token.encode(): ByteArray = encodeKeyStoreLockToken(keystoreAlias, encryptionMethod, encryptedSecret)
+fun PasswordLock.Token.encode(): ByteArray = encodeKeyStoreLockToken(keystoreAlias, encryptionMethod, encryptedSecret)
 
 
 /************************** BIOMETRIC LOCK ************************************/

@@ -58,7 +58,8 @@ object LoginView {
             LocalAuthView(
                 authManager,
                 onLogin = onLogin,
-                onSignOut = { localAuthEnabled.value = false })
+                onSignOut = { localAuthEnabled.value = false }
+            )
         } else {
             UserPasswordLoginView(authManager, onLogin)
         }
@@ -80,7 +81,11 @@ object LoginView {
                 onLogin()
             } catch (e: WrongPinCodeException) {
                 setPinCode("")
-                setErrorMessage("Wrong PIN Code, ${e.remainingAttempts} remaining")
+                setErrorMessage("Wrong PIN Code, ${e.attemptsRemaining} remaining")
+                if (e.attemptsRemaining <= 0) {
+                    authManager.signout()
+                    onSignOut()
+                }
             } catch (e: InvalidRefreshTokenException) {
                 setPinCode("")
                 setErrorMessage("Invalid refresh token. Need to log in again :/")

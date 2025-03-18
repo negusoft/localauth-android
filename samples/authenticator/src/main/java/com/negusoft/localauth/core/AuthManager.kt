@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.fragment.app.FragmentActivity
 import com.negusoft.localauth.authenticator.LocalAuthenticator
+import com.negusoft.localauth.authenticator.WrongPasswordWithMaxAttemptsException
 import com.negusoft.localauth.authenticator.authenticateWithPasswordLock
 import com.negusoft.localauth.authenticator.authenticatedWithBiometricLock
 import com.negusoft.localauth.authenticator.authenticatedWithPasswordLock
@@ -23,7 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 class InvalidUsernameOrPasswordException: Exception("Invalid username or password.")
 class InvalidRefreshTokenException: Exception("Invalid refresh token.")
-class WrongPinCodeException(val remainingAttempts: Int): Exception("Invalid PIN code.")
+class WrongPinCodeException(val attemptsRemaining: Int): Exception("Invalid PIN code.")
 class PinNotRegisteredException: Exception("No PIN code registered.")
 class BiometricNotRegisteredException: Exception("No PIN code registered.")
 
@@ -34,6 +35,9 @@ private const val PREFERENCE_LOCAL_AUTHENTICATOR = "LOCAL_AUTHENTICATOR"
 class AuthManager(
     private val prefs: SharedPreferences
 ) {
+    companion object {
+        private const val MAX_PIN_ATTEMPTS = 5
+    }
 
     constructor(context: Context): this(
         context.getSharedPreferences("preferences", Context.MODE_PRIVATE)
@@ -107,12 +111,14 @@ class AuthManager(
     @Throws(PinNotRegisteredException::class, WrongPinCodeException::class, InvalidRefreshTokenException::class)
     fun login(pinCode: Password) {
         try {
-            val refreshToken = localAuthenticator.authenticatedWithPasswordLock(LOCK_PASSWORD, pinCode) {
+            val refreshToken = localAuthenticator.authenticatedWithPasswordLock(LOCK_PASSWORD, pinCode, MAX_PIN_ATTEMPTS) {
                 Adapter.decode(secret())
             }
             loginWithRefreshToken(refreshToken)
-        } catch (e: LockException) {
-            throw WrongPinCodeException(remainingAttempts = 0)
+        } catch (e: WrongPasswordWithMaxAttemptsException) {
+            throw WrongPinCodeException(attemptsRemaining = e.attemptsRemaining)
+        } finally {
+            save()
         }
     }
 
@@ -155,7 +161,7 @@ class AuthManager(
     }
 
     fun enablePinLogin(editor: LocalAuthenticator.Editor, pinCode: Password) {
-        editor.registerPasswordLock(LOCK_PASSWORD, pinCode)
+        editor.registerPasswordLock(LOCK_PASSWORD, pinCode, MAX_PIN_ATTEMPTS)
         save()
     }
 
@@ -167,13 +173,13 @@ class AuthManager(
     @Throws
     fun enableBiometricLogin(currentPassword: Password) {
         try {
-            val session = localAuthenticator.authenticateWithPasswordLock(LOCK_PASSWORD, currentPassword)
+            val session = localAuthenticator.authenticateWithPasswordLock(LOCK_PASSWORD, currentPassword, MAX_PIN_ATTEMPTS)
             session.edit {
                 registerBiometricLock(LOCK_BIOMETRIC)
                 save()
             }
-        } catch (e: LockException) {
-            throw WrongPinCodeException(remainingAttempts = 0)
+        } catch (e: WrongPasswordWithMaxAttemptsException) {
+            throw WrongPinCodeException(attemptsRemaining = e.attemptsRemaining)
         }
     }
 
@@ -185,15 +191,15 @@ class AuthManager(
     @Throws
     fun changePassword(current: Password): ChangePassword {
         try {
-            val session = localAuthenticator.authenticateWithPasswordLock(LOCK_PASSWORD, current)
+            val session = localAuthenticator.authenticateWithPasswordLock(LOCK_PASSWORD, current, MAX_PIN_ATTEMPTS)
             return ChangePassword { newPassword ->
                 session.edit {
                     registerPasswordLock(LOCK_PASSWORD, newPassword)
                     save()
                 }
             }
-        } catch (e: LockException) {
-            throw WrongPinCodeException(remainingAttempts = 0)
+        } catch (e: WrongPasswordWithMaxAttemptsException) {
+            throw WrongPinCodeException(attemptsRemaining = e.attemptsRemaining)
         }
     }
 

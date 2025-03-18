@@ -2,13 +2,16 @@ package com.negusoft.localauth
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.negusoft.localauth.authenticator.LocalAuthenticator
+import com.negusoft.localauth.authenticator.WrongPasswordWithMaxAttemptsException
 import com.negusoft.localauth.authenticator.authenticatedWithPasswordLock
+import com.negusoft.localauth.authenticator.getPasswordLockRetryAttempts
 import com.negusoft.localauth.authenticator.initialize
 import com.negusoft.localauth.authenticator.registerPasswordLock
 import com.negusoft.localauth.coding.encode
 import com.negusoft.localauth.coding.restore
 import com.negusoft.localauth.lock.LockException
 import com.negusoft.localauth.lock.Password
+import com.negusoft.localauth.lock.WrongPasswordException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -70,7 +73,7 @@ class LocalAuthenticatorTest {
                 fail("Should have thrown an exception")
             }
             fail("Should have thrown an exception")
-        } catch (e: LockException) {
+        } catch (e: WrongPasswordException) {
             // Expected
         }
 
@@ -136,6 +139,81 @@ class LocalAuthenticatorTest {
             assertEquals(publicProperty, "public_property")
 
             assertTrue(decodedAuthenticator.lockEnabled("password"))
+        }
+    }
+
+    @Test
+    fun passwordMaxAttemptsTest() {
+        val maxAttempts = 2
+        val authenticator = LocalAuthenticator.create().apply {
+            initialize("test", Adapter::encode).apply {
+                registerPasswordLock("password", Password("11111"), maxAttempts)
+            }
+        }
+        // First attempt
+        try {
+            authenticator.authenticatedWithPasswordLock("password", Password("wrong"), maxAttempts) {}
+            fail()
+        } catch (e: WrongPasswordWithMaxAttemptsException) {
+            assertEquals(e.attemptsRemaining, 1)
+            assertEquals(authenticator.getPasswordLockRetryAttempts("password"), 1)
+        }
+        // Second attempt
+        try {
+            authenticator.authenticatedWithPasswordLock("password", Password("wrong"), maxAttempts) {}
+            fail()
+        } catch (e: WrongPasswordWithMaxAttemptsException) {
+            assertEquals(e.attemptsRemaining, 0)
+            assertEquals(authenticator.getPasswordLockRetryAttempts("password"), 0)
+        }
+        // attemptsRemaining shouldn't go below 0.
+        try {
+            authenticator.authenticatedWithPasswordLock("password", Password("wrong"), maxAttempts) {}
+            fail()
+        } catch (e: WrongPasswordWithMaxAttemptsException) {
+            assertEquals(e.attemptsRemaining, 0)
+            assertEquals(authenticator.getPasswordLockRetryAttempts("password"), 0)
+        }
+        // Once attempts exhausted, it should fail even with the correct password.
+        try {
+            authenticator.authenticatedWithPasswordLock("password", Password("11111"), maxAttempts) {}
+            fail()
+        } catch (e: WrongPasswordWithMaxAttemptsException) {
+            assertEquals(e.attemptsRemaining, 0)
+            assertEquals(authenticator.getPasswordLockRetryAttempts("password"), 0)
+        }
+    }
+
+    @Test
+    fun passwordMaxAttemptsShouldResetOnSuccess() {
+        val maxAttempts = 2
+        val authenticator = LocalAuthenticator.create().apply {
+            initialize("test", Adapter::encode).apply {
+                registerPasswordLock("password", Password("11111"), maxAttempts)
+            }
+        }
+        // First attempt -> Fail
+        try {
+            authenticator.authenticatedWithPasswordLock("password", Password("wrong"), maxAttempts) {}
+            fail()
+        } catch (e: WrongPasswordWithMaxAttemptsException) {
+            assertEquals(e.attemptsRemaining, 1)
+            assertEquals(authenticator.getPasswordLockRetryAttempts("password"), 1)
+        }
+        // First attempt -> Success and reset attempts
+        try {
+            authenticator.authenticatedWithPasswordLock("password", Password("11111"), maxAttempts) {}
+            assertEquals(authenticator.getPasswordLockRetryAttempts("password"), 2)
+        } catch (e: WrongPasswordWithMaxAttemptsException) {
+            fail()
+        }
+        // Third attempt -> Fail with max attempts reset
+        try {
+            authenticator.authenticatedWithPasswordLock("password", Password("wrong"), maxAttempts) {}
+            fail()
+        } catch (e: WrongPasswordWithMaxAttemptsException) {
+            assertEquals(e.attemptsRemaining, 1)
+            assertEquals(authenticator.getPasswordLockRetryAttempts("password"), 1)
         }
     }
 

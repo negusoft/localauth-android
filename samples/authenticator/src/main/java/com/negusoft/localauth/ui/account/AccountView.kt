@@ -61,13 +61,15 @@ object AccountView {
         }
 
         val onChangePassword = authManager.onChangePasswordHandler(
-            onError = { error.value = "Wrong password, pleas try again" }
+            onError = { message -> error.value = message },
+            onLogout = { authManager.signout() }
         )
 
         val biometricEnabled = remember { mutableStateOf(authManager.biometricRegistered) }
         val onToggleBiometric = authManager.onToggleBiometricHandler(
             onChanged = { enabled -> biometricEnabled.value = enabled },
-            onError = { error.value = "Wrong PIN code, pleas try again" }
+            onError = { message -> error.value = message },
+            onLogout = { authManager.signout() }
         )
 
         Content(
@@ -81,7 +83,8 @@ object AccountView {
 
     @Composable
     private fun AuthManager.onChangePasswordHandler(
-        onError: (String) -> Unit
+        onError: (String) -> Unit,
+        onLogout: () -> Unit
     ): () -> Unit {
         val oldPasswordDialog = remember { mutableStateOf(false) }
         val changePasswordDialog = remember { mutableStateOf<AuthManager.ChangePassword?>(null) }
@@ -90,7 +93,10 @@ object AccountView {
             try {
                 changePasswordDialog.value = this.changePassword(password)
             } catch (e: WrongPinCodeException) {
-                onError("Wrong password, pleas try again")
+                when {
+                    e.attemptsRemaining <= 0 -> onLogout()
+                    else -> onError("Wrong password, please try again (${e.attemptsRemaining} attempts remaining).")
+                }
             } finally {
                 oldPasswordDialog.value = false
             }
@@ -119,7 +125,8 @@ object AccountView {
     @Composable
     private fun AuthManager.onToggleBiometricHandler(
         onChanged: (Boolean) -> Unit,
-        onError: (String) -> Unit
+        onError: (String) -> Unit,
+        onLogout: () -> Unit
     ): (Boolean) -> Unit {
         val biometricEnabled = remember { mutableStateOf(biometricRegistered) }
 
@@ -134,7 +141,10 @@ object AccountView {
                         biometricEnabled.value = true
                         onChanged(true)
                     } catch (e: WrongPinCodeException) {
-                        onError("Wrong PIN code, pleas try again")
+                        when {
+                            e.attemptsRemaining <= 0 -> onLogout()
+                            else -> onError("Wrong password, please try again (${e.attemptsRemaining} attempts remaining).")
+                        }
                     }
                 }
             )

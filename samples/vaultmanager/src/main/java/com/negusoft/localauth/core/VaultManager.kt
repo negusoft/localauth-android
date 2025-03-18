@@ -9,10 +9,10 @@ import com.negusoft.localauth.vault.EncryptedValue
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.lock.BiometricLock
 import com.negusoft.localauth.lock.Password
-import com.negusoft.localauth.lock.PinLock
+import com.negusoft.localauth.lock.PasswordLock
 import com.negusoft.localauth.lock.open
 import com.negusoft.localauth.lock.registerBiometricLock
-import com.negusoft.localauth.lock.registerPinLock
+import com.negusoft.localauth.lock.registerPasswordLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
@@ -123,7 +123,7 @@ class VaultModel private constructor(
     @Transient private var _vault: LocalVault? = null
 ) {
     companion object {
-        fun vault(id: String, name: String, vault: LocalVault, pinToken: PinLock.Token? = null) =
+        fun vault(id: String, name: String, vault: LocalVault, pinToken: PasswordLock.Token? = null) =
             VaultModel(id, name, vault.encode(), pinToken?.encode(), _vault = vault)
     }
 
@@ -135,7 +135,7 @@ class VaultModel private constructor(
     }
 
     val pinLockEnabled get() = pinTokenEncoded != null
-    val pinToken: PinLock.Token? by lazy { pinTokenEncoded?.let { PinLock.Token.restore(it) } }
+    val pinToken: PasswordLock.Token? by lazy { pinTokenEncoded?.let { PasswordLock.Token.restore(it) } }
 
     val biometricLockEnabled get() = biometricTokenEncoded != null
     val biometricToken: BiometricLock.Token? by lazy { biometricTokenEncoded?.let { BiometricLock.Token.restore(it) } }
@@ -183,7 +183,7 @@ class OpenVaultModel(
 
     fun registerPinLock(password: Password) {
         val id = "${vault.id}_pin_lock"
-        val lock =  openVault.registerPinLock(password, id)
+        val lock =  openVault.registerPasswordLock(password, id)
         vault = vault.modify(pinTokenEncoded = lock.encode())
     }
 

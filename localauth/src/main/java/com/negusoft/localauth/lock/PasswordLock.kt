@@ -7,12 +7,12 @@ import com.negusoft.localauth.crypto.encryptWithPassword
 import kotlinx.serialization.Serializable
 import javax.crypto.SecretKey
 
-class WrongPinException : LockException("Wrong PIN code.")
+open class WrongPasswordException : LockException("Wrong password.")
 
 @JvmInline
 value class Password(val value: String)
 
-class PinLock private constructor(
+class PasswordLock private constructor(
     key: SecretKey,
     keyIdentifier: String,
     encryptionMethod: String?
@@ -25,7 +25,7 @@ class PinLock private constructor(
     ) {
         companion object
 
-        val lock: PinLock get() = restore(keystoreAlias, encryptionMethod)
+        val lock: PasswordLock get() = restore(keystoreAlias, encryptionMethod)
     }
 
     companion object {
@@ -35,24 +35,24 @@ class PinLock private constructor(
             keystoreAlias: String,
             useStrongBoxWhenAvailable: Boolean = true,
             specBuilder: () -> KeyGenParameterSpec.Builder = defaultKeySpecBuilder(keystoreAlias)
-        ): PinLock {
+        ): PasswordLock {
             val key = createKey(useStrongBoxWhenAvailable, specBuilder)
-            return PinLock(key, keystoreAlias, null)
+            return PasswordLock(key, keystoreAlias, null)
         }
 
         fun restore(
             key: SecretKey,
             keyIdentifier: String,
             encryptionMethod: String?
-        ): PinLock = PinLock(key, keyIdentifier, encryptionMethod)
+        ): PasswordLock = PasswordLock(key, keyIdentifier, encryptionMethod)
 
         @Throws(LockException::class)
         fun restore(
             keystoreAlias: String,
             encryptionMethod: String? = null
-        ): PinLock {
+        ): PasswordLock {
             val key = restoreKey(keystoreAlias)
-            return PinLock(key, keystoreAlias, encryptionMethod)
+            return PasswordLock(key, keystoreAlias, encryptionMethod)
         }
 
         @Throws(LockException::class)
@@ -72,9 +72,9 @@ class PinLock private constructor(
             try {
                 Ciphers.AES_GCM_NoPadding
                     .decryptWithPassword(password.value, secretPasswordEncrypted)
-                    ?: throw WrongPinException()
+                    ?: throw WrongPasswordException()
             } catch (e: Throwable) {
-                throw WrongPinException()
+                throw WrongPasswordException()
             }
         }
     )
@@ -85,13 +85,13 @@ class PinLock private constructor(
  * Throws VaultLockException (or a a subclass of it) on lock failure.
  * It might throw a VaultException if an invalid key was decoded.
  */
-fun LockProtected.open(token: PinLock.Token, password: Password) = open {
-    val lock = PinLock.restore(token)
+fun LockProtected.open(token: PasswordLock.Token, password: Password) = open {
+    val lock = PasswordLock.restore(token)
     lock.unlock(token, password)
 }
-fun LockRegister.registerPinLock(
+fun LockRegister.registerPasswordLock(
     password: Password, keystoreAlias: String, useStrongBoxWhenAvailable: Boolean = true
-): PinLock.Token = registerLock { privateKeyEncoded ->
-    val lock = PinLock.create(keystoreAlias, useStrongBoxWhenAvailable)
+): PasswordLock.Token = registerLock { privateKeyEncoded ->
+    val lock = PasswordLock.create(keystoreAlias, useStrongBoxWhenAvailable)
     lock.lock(privateKeyEncoded, password)
 }

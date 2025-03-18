@@ -173,12 +173,12 @@ class LocalAuthenticator internal constructor(
 
     interface Unlocker<Token> {
         fun decode(bytes: ByteArray): Token
-        fun unlock(local: LocalAuthenticator, token: Token, protected: LockProtected): LocalVault.OpenVault
+        fun unlock(local: LocalAuthenticator, lockId: String, token: Token, protected: LockProtected): LocalVault.OpenVault
     }
 
     interface UnlockerSuspending<Token> {
         fun decode(bytes: ByteArray): Token
-        suspend fun unlock(local: LocalAuthenticator, token: Token, protected: LockProtected): LocalVault.OpenVault
+        suspend fun unlock(local: LocalAuthenticator, lockId: String, token: Token, protected: LockProtected): LocalVault.OpenVault
     }
 
     @Throws(LocalAuthenticatorException::class)
@@ -199,7 +199,7 @@ class LocalAuthenticator internal constructor(
                     ?: throw LocalAuthenticatorException("Local Authenticator not initialized")
             }
         }
-        val openVault = unlocker.unlock(this, token, protected)
+        val openVault = unlocker.unlock(this, lockId, token, protected)
 
         return Session(this, openVault)
     }
@@ -222,7 +222,7 @@ class LocalAuthenticator internal constructor(
                     ?: throw LocalAuthenticatorException("Local Authenticator not initialized")
             }
         }
-        val openVault = unlocker.unlock(this, token, protected)
+        val openVault = unlocker.unlock(this, lockId, token, protected)
 
         return Session(this, openVault)
     }
