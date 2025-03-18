@@ -126,6 +126,16 @@ class LocalAuthenticator internal constructor(
         )
     }
 
+
+    fun initialize(
+        secret: ByteArray? = null,
+        secretProperties: Map<String, ByteArray>? = null,
+        publicProperties: Map<String, ByteArray>? = null,
+        editor: Editor.() -> Unit
+    ) {
+        initialize(secret, secretProperties, publicProperties).apply(editor)
+    }
+
     @Throws(LocalAuthenticatorException::class)
     fun updateSecret(value: ByteArray) {
         val vault = vault ?: throw LocalAuthenticatorException("Local Authenticator not initialized")
