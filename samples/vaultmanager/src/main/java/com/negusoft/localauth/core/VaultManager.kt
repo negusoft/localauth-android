@@ -5,6 +5,7 @@ import androidx.core.content.edit
 import androidx.fragment.app.FragmentActivity
 import com.negusoft.localauth.coding.encode
 import com.negusoft.localauth.coding.restore
+import com.negusoft.localauth.keystore.BiometricHelper
 import com.negusoft.localauth.vault.EncryptedValue
 import com.negusoft.localauth.vault.LocalVault
 import com.negusoft.localauth.lock.BiometricLock
@@ -153,9 +154,9 @@ class VaultModel private constructor(
         return OpenVaultModel(this, openVault)
     }
 
-    suspend fun openBiometric(activity: FragmentActivity): OpenVaultModel {
+    suspend fun openBiometric(activity: FragmentActivity, promptConfig: BiometricHelper.PromptConfig): OpenVaultModel {
         val biometricToken = biometricToken ?: throw IllegalStateException("No biometric lock")
-        val openVault = vault.open(biometricToken, activity)
+        val openVault = vault.open(biometricToken, activity, promptConfig)
         return OpenVaultModel(this, openVault)
     }
 

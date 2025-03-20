@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import com.negusoft.localauth.keystore.BiometricHelper
 import com.negusoft.localauth.ui.common.InputDialog
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
 
@@ -71,6 +72,7 @@ object VaultDetailsView {
             }
         }
         val activity = LocalContext.current as FragmentActivity
+        val promptConfig = BiometricHelper.PromptConfig(title = "Unlock vault", cancelText = "Cancel")
 
         val saveRequired = viewModel.saveRequired.collectAsState()
         val showDiscardChangesDialog = remember { mutableStateOf(false) }
@@ -168,7 +170,7 @@ object VaultDetailsView {
             onUnlockWithPin = viewModel::unlockWithPinCode,
             onEnablePinLock = viewModel::enablePinLock,
             onDisablePinLock = viewModel::disablePinLock,
-            onUnlockWithBiometric = { viewModel.unlockWithBiometric(activity) },
+            onUnlockWithBiometric = { viewModel.unlockWithBiometric(activity, promptConfig) },
             onEnableBiometricLock = { viewModel.enableBiometricLock(activity) },
             onDisableBiometricLock = viewModel::disableBiometricLock,
         )

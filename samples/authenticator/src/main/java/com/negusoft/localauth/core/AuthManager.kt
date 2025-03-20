@@ -18,6 +18,7 @@ import com.negusoft.localauth.preferences.putByteArray
 import com.negusoft.localauth.authenticator.registerBiometricLock
 import com.negusoft.localauth.authenticator.registerPasswordLock
 import com.negusoft.localauth.authenticator.updateSecret
+import com.negusoft.localauth.keystore.BiometricHelper
 import com.negusoft.localauth.lock.Password
 import com.negusoft.localauth.utils.mapState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -123,8 +124,8 @@ class AuthManager(
     }
 
     @Throws(BiometricNotRegisteredException::class, WrongPinCodeException::class, InvalidRefreshTokenException::class)
-    suspend fun loginWithBiometric(activity: FragmentActivity) {
-        val refreshTokenEncoded = localAuthenticator.authenticatedWithBiometricLock(LOCK_BIOMETRIC, activity) { secret() }
+    suspend fun loginWithBiometric(activity: FragmentActivity, promptConfig: BiometricHelper.PromptConfig) {
+        val refreshTokenEncoded = localAuthenticator.authenticatedWithBiometricLock(LOCK_BIOMETRIC, activity, promptConfig) { secret() }
         val refreshToken = Adapter.decode(refreshTokenEncoded)
         loginWithRefreshToken(refreshToken)
     }

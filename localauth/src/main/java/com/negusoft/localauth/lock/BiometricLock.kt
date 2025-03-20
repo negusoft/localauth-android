@@ -71,12 +71,15 @@ class BiometricLock(
     suspend fun unlock(token: Token, authenticator: suspend (Cipher) -> Cipher): ByteArray =
         super.unlock(token.encryptedSecret, authenticator)
 
-    suspend fun unlock(token: Token, activity: FragmentActivity): ByteArray = unlock(token) authenticator@{ lockedCipher ->
+    suspend fun unlock(
+        token: Token,
+        activity: FragmentActivity,
+        promptConfig: BiometricHelper.PromptConfig
+    ): ByteArray = unlock(token) authenticator@{ lockedCipher ->
         return@authenticator BiometricHelper.showBiometricPrompt(
             activity = activity,
             cipher = lockedCipher,
-            title = "Unlock vault",
-            cancelText = "Cancel"
+            config = promptConfig
         ) ?: throw BiometricPromptCancelledException("Biometric authentication cancelled.")
     }
 }
@@ -97,10 +100,11 @@ suspend fun LockProtected.open(
 @Throws(LockException::class, LocalVaultException::class)
 suspend fun LockProtected.open(
     token: BiometricLock.Token,
-    activity: FragmentActivity
+    activity: FragmentActivity,
+    promptConfig: BiometricHelper.PromptConfig
 ) = openSuspending {
     val lock = BiometricLock.restore(token)
-    lock.unlock(token, activity)
+    lock.unlock(token, activity, promptConfig)
 }
 fun LockRegister.registerBiometricLock(
     keystoreAlias: String, useStrongBoxWhenAvailable: Boolean = true

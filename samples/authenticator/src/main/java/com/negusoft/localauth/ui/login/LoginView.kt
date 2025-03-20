@@ -41,6 +41,7 @@ import com.negusoft.localauth.core.AuthManager
 import com.negusoft.localauth.core.InvalidRefreshTokenException
 import com.negusoft.localauth.core.InvalidUsernameOrPasswordException
 import com.negusoft.localauth.core.WrongPinCodeException
+import com.negusoft.localauth.keystore.BiometricHelper
 import com.negusoft.localauth.lock.Password
 import com.negusoft.localauth.ui.common.PasswordInputDialog
 import com.negusoft.localauth.ui.theme.LocalAuthTheme
@@ -93,6 +94,7 @@ object LoginView {
         }
 
         val activity = LocalContext.current as? FragmentActivity
+        val promptConfig = BiometricHelper.PromptConfig(title = "Unlock vault", cancelText = "Cancel")
         val loginWithBiometricAction: MutableState<(suspend () -> Unit)?> = remember { mutableStateOf(null) }
         LaunchedEffect(loginWithBiometricAction.value) {
             loginWithBiometricAction.value?.invoke()
@@ -101,7 +103,7 @@ object LoginView {
             loginWithBiometricAction.value = {
                 try {
                     setErrorMessage(null)
-                    authManager.loginWithBiometric(activity!!)
+                    authManager.loginWithBiometric(activity!!, promptConfig)
                     onLogin()
                 } catch (e: InvalidRefreshTokenException) {
                     setPinCode("")

@@ -7,6 +7,7 @@ import com.negusoft.localauth.core.OpenVaultModel
 import com.negusoft.localauth.core.SecretValueModel
 import com.negusoft.localauth.core.VaultManager
 import com.negusoft.localauth.core.VaultModel
+import com.negusoft.localauth.keystore.BiometricHelper
 import com.negusoft.localauth.lock.BiometricPromptCancelledException
 import com.negusoft.localauth.lock.LockException
 import com.negusoft.localauth.lock.Password
@@ -121,10 +122,10 @@ class VaultDetailsViewModel(
         vault.value = openVault.vault
     }
 
-    fun unlockWithBiometric(activity: FragmentActivity) {
+    fun unlockWithBiometric(activity: FragmentActivity, promptConfig: BiometricHelper.PromptConfig) {
         viewModelScope.launch {
             try {
-                openVault = vault.value.openBiometric(activity)
+                openVault = vault.value.openBiometric(activity, promptConfig)
                 isOpen.value = true
             } catch (e: BiometricPromptCancelledException) {
                 // no-op

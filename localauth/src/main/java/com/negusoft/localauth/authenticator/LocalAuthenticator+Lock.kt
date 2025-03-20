@@ -4,6 +4,7 @@ import androidx.fragment.app.FragmentActivity
 import com.negusoft.localauth.authenticator.LocalAuthenticator.Session
 import com.negusoft.localauth.coding.encode
 import com.negusoft.localauth.coding.restore
+import com.negusoft.localauth.keystore.BiometricHelper
 import com.negusoft.localauth.lock.BiometricLock
 import com.negusoft.localauth.lock.EncodedLockToken
 import com.negusoft.localauth.lock.LockProtected
@@ -137,7 +138,7 @@ fun LocalAuthenticator.Unlockers.biometricLock(authenticator: suspend (Cipher) -
         return protected.open(token, authenticator)
     }
 }
-fun LocalAuthenticator.Unlockers.biometricLock(activity: FragmentActivity) = object :
+fun LocalAuthenticator.Unlockers.biometricLock(activity: FragmentActivity, promptConfig: BiometricHelper.PromptConfig) = object :
     LocalAuthenticator.UnlockerSuspending<BiometricLock.Token> {
     override fun decode(bytes: ByteArray) = BiometricLock.Token.restore(bytes)
     override suspend fun unlock(
@@ -146,15 +147,15 @@ fun LocalAuthenticator.Unlockers.biometricLock(activity: FragmentActivity) = obj
         token: BiometricLock.Token,
         protected: LockProtected
     ): LocalVault.OpenVault {
-        return protected.open(token, activity)
+        return protected.open(token, activity, promptConfig)
     }
 }
 suspend fun LocalAuthenticator.authenticateWithBiometricLock(lockId: String, authenticator: suspend (Cipher) -> Cipher)
         = authenticateSuspending(lockId, LocalAuthenticator.Unlockers.biometricLock(authenticator))
-suspend fun LocalAuthenticator.authenticateWithBiometricLock(lockId: String, activity: FragmentActivity)
-        = authenticateSuspending(lockId, LocalAuthenticator.Unlockers.biometricLock(activity))
+suspend fun LocalAuthenticator.authenticateWithBiometricLock(lockId: String, activity: FragmentActivity, promptConfig: BiometricHelper.PromptConfig)
+        = authenticateSuspending(lockId, LocalAuthenticator.Unlockers.biometricLock(activity, promptConfig))
 
 suspend fun <Result> LocalAuthenticator.authenticatedWithBiometricLock(lockId: String, authenticator: suspend (Cipher) -> Cipher, session: suspend Session.() -> Result)
         = authenticatedSuspending(lockId, LocalAuthenticator.Unlockers.biometricLock(authenticator), session)
-suspend fun <Result> LocalAuthenticator.authenticatedWithBiometricLock(lockId: String, activity: FragmentActivity, session: suspend Session.() -> Result)
-        = authenticatedSuspending(lockId, LocalAuthenticator.Unlockers.biometricLock(activity), session)
+suspend fun <Result> LocalAuthenticator.authenticatedWithBiometricLock(lockId: String, activity: FragmentActivity, promptConfig: BiometricHelper.PromptConfig, session: suspend Session.() -> Result)
+        = authenticatedSuspending(lockId, LocalAuthenticator.Unlockers.biometricLock(activity, promptConfig), session)
