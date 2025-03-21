@@ -20,34 +20,6 @@ object KeyStoreLockCommons {
         fun toToken(alias: String, encryptionMethod: String?, encryptedSecret: ByteArray): T
     }
 
-//    object Token {
-////        private const val ENCODING_VERSION: Byte = 0x00
-////
-////        @Throws(LockException::class)
-////        fun <T> restore(
-////            encoded: ByteArray,
-////            adapter: TokenAdapter<T>
-////        ): T {
-////            val decoder = ByteCoding.decode(encoded)
-////            if (!decoder.checkValueEquals(byteArrayOf(ENCODING_VERSION))) {
-////                throw LockException("Wrong encoding version (${encoded[0]}).")
-////            }
-////            val alias = decoder.readStringProperty() ?: throw LockException("Failed to decode 'alias'.")
-////            val method = decoder.readStringProperty()
-////            val encryptedSecret = decoder.readFinal()
-////            return adapter.toToken(alias, method, encryptedSecret)
-////        }
-//
-////        fun encode(alias: String, encryptionMethod: String?, encryptedSecret: ByteArray): ByteArray {
-////            return ByteCoding.encode(prefix = byteArrayOf(ENCODING_VERSION)) {
-////                writeProperty(alias)
-////                writeProperty(encryptionMethod)
-////                writeValue(encryptedSecret)
-////            }
-////        }
-//
-//    }
-
     open class SecretKeyLock(
         private val key: SecretKey,
         private val keyIdentifier: String,
@@ -68,16 +40,20 @@ object KeyStoreLockCommons {
 
             @JvmStatic
             @Throws(LockException::class)
+            protected fun createKeyAES_GCM_NoPadding(
+                keystoreAlias: String,
+                useStrongBoxWhenAvailable: Boolean
+            ): SecretKey = createKey(useStrongBoxWhenAvailable) {
+                KeyGenParameterSpec.Builder(keystoreAlias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                    .setAES_GCM_NoPadding()
+            }
+
+            @JvmStatic
+            @Throws(LockException::class)
             protected fun restoreKey(keystoreAlias: String): SecretKey = try {
                 AndroidKeyStore().getSecretKey(keystoreAlias)
             } catch (t: Throwable) {
                 throw LockException("Failed to create lock.", t)
-            }
-
-            @JvmStatic
-            protected fun defaultKeySpecBuilder(keystoreAlias: String): () -> KeyGenParameterSpec.Builder = {
-                KeyGenParameterSpec.Builder(keystoreAlias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                    .setAES_GCM_NoPadding()
             }
 
         }
@@ -132,17 +108,22 @@ object KeyStoreLockCommons {
 
             @JvmStatic
             @Throws(LockException::class)
+            protected fun createKeyPairRSA_OAEPPadding_BiometricAuth(
+                keystoreAlias: String,
+                useStrongBoxWhenAvailable: Boolean = true,
+                invalidatedByBiometricEnrollment: Boolean = true
+            ): KeyPair = createKeyPair(useStrongBoxWhenAvailable) {
+                KeyGenParameterSpec.Builder(keystoreAlias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                    .setRSA_OAEPPadding()
+                    .setBiometricAuthenticated(invalidatedByBiometricEnrollment)
+            }
+
+            @JvmStatic
+            @Throws(LockException::class)
             protected fun restoreKeyPair(keystoreAlias: String): KeyPair = try {
                 AndroidKeyStore().getKeyPair(keystoreAlias)
             } catch (t: Throwable) {
                 throw LockException("Failed to create lock.", t)
-            }
-
-            @JvmStatic
-            protected fun defaultKeySpecBuilder(keystoreAlias: String): () -> KeyGenParameterSpec.Builder = {
-                KeyGenParameterSpec.Builder(keystoreAlias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                    .setRSA_OAEPPadding()
-                    .setBiometricAuthenticated()
             }
 
         }

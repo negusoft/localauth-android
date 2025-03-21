@@ -1,6 +1,5 @@
 package com.negusoft.localauth.lock
 
-import android.security.keystore.KeyGenParameterSpec
 import androidx.fragment.app.FragmentActivity
 import com.negusoft.localauth.keystore.BiometricHelper
 import com.negusoft.localauth.vault.LocalVaultException
@@ -8,12 +7,6 @@ import kotlinx.serialization.Serializable
 import java.security.KeyPair
 import javax.crypto.Cipher
 
-//@Deprecated("deleteme")
-//class BiometricLockException(
-//    message: String, val reason: Reason = Reason.ERROR, cause: Throwable? = null
-//) : LockException(message, cause) {
-//    enum class Reason { CANCELLATION, ERROR }
-//}
 class BiometricPromptCancelledException(message: String) : LockException(message)
 
 class BiometricLock(
@@ -34,14 +27,24 @@ class BiometricLock(
 
     companion object {
 
+        /** Create with default params. */
         @Throws(LockException::class)
         fun create(
             keystoreAlias: String,
             useStrongBoxWhenAvailable: Boolean = true,
-            specBuilder: () -> KeyGenParameterSpec.Builder = defaultKeySpecBuilder(keystoreAlias)
+            invalidatedByBiometricEnrollment: Boolean = true
         ): BiometricLock {
-            val keyPair = KeyStoreLockCommons.KeyPairLock.createKeyPair(useStrongBoxWhenAvailable, specBuilder)
+            val keyPair = KeyStoreLockCommons.KeyPairLock.createKeyPairRSA_OAEPPadding_BiometricAuth(keystoreAlias, useStrongBoxWhenAvailable, invalidatedByBiometricEnrollment)
             return BiometricLock(keyPair, keystoreAlias, null)
+        }
+
+        @Throws(LockException::class)
+        fun create(
+            keyPair: KeyPair,
+            keyIdentifier: String,
+            encryptionMethod: String? = null
+        ): BiometricLock {
+            return BiometricLock(keyPair, keyIdentifier, encryptionMethod)
         }
 
         fun restore(
@@ -107,8 +110,10 @@ suspend fun LockProtected.open(
     lock.unlock(token, activity, promptConfig)
 }
 fun LockRegister.registerBiometricLock(
-    keystoreAlias: String, useStrongBoxWhenAvailable: Boolean = true
+    keystoreAlias: String,
+    useStrongBoxWhenAvailable: Boolean = true,
+    invalidatedByBiometricEnrollment: Boolean = true
 ) : BiometricLock.Token = registerLock { privateKeyEncoded ->
-    val lock = BiometricLock.create(keystoreAlias, useStrongBoxWhenAvailable)
+    val lock = BiometricLock.create(keystoreAlias, useStrongBoxWhenAvailable, invalidatedByBiometricEnrollment)
     lock.lock(privateKeyEncoded)
 }

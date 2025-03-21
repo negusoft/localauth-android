@@ -128,8 +128,9 @@ fun KeyGenParameterSpec.Builder.setStrongBoxBacked(useStrongbox: Boolean): KeyGe
     }
 }
 
-fun KeyGenParameterSpec.Builder.setBiometricAuthenticated(): KeyGenParameterSpec.Builder = this
+fun KeyGenParameterSpec.Builder.setBiometricAuthenticated(invalidatedByBiometricEnrollment: Boolean = true): KeyGenParameterSpec.Builder = this
     .setUserAuthenticationRequired(true)
+    .setInvalidatedByBiometricEnrollment(invalidatedByBiometricEnrollment)
     .run {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)

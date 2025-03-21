@@ -1,6 +1,5 @@
 package com.negusoft.localauth.lock
 
-import android.security.keystore.KeyGenParameterSpec
 import com.negusoft.localauth.crypto.Ciphers
 import com.negusoft.localauth.crypto.decryptWithPassword
 import com.negusoft.localauth.crypto.encryptWithPassword
@@ -32,11 +31,19 @@ class PasswordLock private constructor(
 
         @Throws(LockException::class)
         fun create(
-            keystoreAlias: String,
-            useStrongBoxWhenAvailable: Boolean = true,
-            specBuilder: () -> KeyGenParameterSpec.Builder = defaultKeySpecBuilder(keystoreAlias)
+            key: SecretKey,
+            keyIdentifier: String,
+            encryptionMethod: String? = null
         ): PasswordLock {
-            val key = createKey(useStrongBoxWhenAvailable, specBuilder)
+            return PasswordLock(key, keyIdentifier, encryptionMethod)
+        }
+
+        @Throws(LockException::class)
+        fun create(
+            keystoreAlias: String,
+            useStrongBoxWhenAvailable: Boolean = true
+        ): PasswordLock {
+            val key = createKeyAES_GCM_NoPadding(keystoreAlias, useStrongBoxWhenAvailable)
             return PasswordLock(key, keystoreAlias, null)
         }
 

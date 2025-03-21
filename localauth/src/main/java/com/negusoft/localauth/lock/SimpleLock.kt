@@ -1,6 +1,5 @@
 package com.negusoft.localauth.lock
 
-import android.security.keystore.KeyGenParameterSpec
 import kotlinx.serialization.Serializable
 import javax.crypto.SecretKey
 
@@ -29,11 +28,19 @@ class SimpleLock private constructor(
 
         @Throws(LockException::class)
         fun create(
-            keystoreAlias: String,
-            useStrongBoxWhenAvailable: Boolean = true,
-            specBuilder: () -> KeyGenParameterSpec.Builder = defaultKeySpecBuilder(keystoreAlias)
+            key: SecretKey,
+            keyIdentifier: String,
+            encryptionMethod: String? = null
         ): SimpleLock {
-            val key = createKey(useStrongBoxWhenAvailable, specBuilder)
+            return SimpleLock(key, keyIdentifier, encryptionMethod)
+        }
+
+        @Throws(LockException::class)
+        fun create(
+            keystoreAlias: String,
+            useStrongBoxWhenAvailable: Boolean = true
+        ): SimpleLock {
+            val key = createKeyAES_GCM_NoPadding(keystoreAlias, useStrongBoxWhenAvailable)
             return SimpleLock(key, keystoreAlias, null)
         }
 
