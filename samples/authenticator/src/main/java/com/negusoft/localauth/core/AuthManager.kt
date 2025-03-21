@@ -5,21 +5,21 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.fragment.app.FragmentActivity
 import com.negusoft.localauth.authenticator.LocalAuthenticator
+import com.negusoft.localauth.authenticator.Property
 import com.negusoft.localauth.authenticator.WrongPasswordWithMaxAttemptsException
+import com.negusoft.localauth.authenticator.asString
 import com.negusoft.localauth.authenticator.authenticateWithPasswordLock
 import com.negusoft.localauth.authenticator.authenticatedWithBiometricLock
 import com.negusoft.localauth.authenticator.authenticatedWithPasswordLock
-import com.negusoft.localauth.coding.encode
-import com.negusoft.localauth.coding.restore
-import com.negusoft.localauth.authenticator.initialize
-import com.negusoft.localauth.lock.LockException
-import com.negusoft.localauth.preferences.getByteArray
-import com.negusoft.localauth.preferences.putByteArray
+import com.negusoft.localauth.authenticator.decode
 import com.negusoft.localauth.authenticator.registerBiometricLock
 import com.negusoft.localauth.authenticator.registerPasswordLock
-import com.negusoft.localauth.authenticator.updateSecret
+import com.negusoft.localauth.coding.encode
+import com.negusoft.localauth.coding.restore
 import com.negusoft.localauth.keystore.BiometricHelper
 import com.negusoft.localauth.lock.Password
+import com.negusoft.localauth.preferences.getByteArray
+import com.negusoft.localauth.preferences.putByteArray
 import com.negusoft.localauth.utils.mapState
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -80,10 +80,8 @@ class AuthManager(
     val pinCodeRegistered: Boolean get() = localAuthenticator.lockEnabled(LOCK_PASSWORD)
     val biometricRegistered: Boolean get() = localAuthenticator.lockEnabled(LOCK_BIOMETRIC)
 
-    object Adapter {
-        fun encode(secret: RefreshToken): ByteArray = secret.value.toByteArray()
-        fun decode(bytes: ByteArray): RefreshToken = RefreshToken(bytes.toString(Charsets.UTF_8))
-    }
+    fun Property(refreshToken: RefreshToken) = Property(refreshToken.value.toByteArray())
+    fun Property.asRefreshToken() = RefreshToken(asString())
 
     init {
         val encoded = prefs.getByteArray(PREFERENCE_LOCAL_AUTHENTICATOR)
@@ -113,7 +111,7 @@ class AuthManager(
     fun login(pinCode: Password) {
         try {
             val refreshToken = localAuthenticator.authenticatedWithPasswordLock(LOCK_PASSWORD, pinCode, MAX_PIN_ATTEMPTS) {
-                Adapter.decode(secret())
+                secret().asRefreshToken()
             }
             loginWithRefreshToken(refreshToken)
         } catch (e: WrongPasswordWithMaxAttemptsException) {
@@ -126,7 +124,7 @@ class AuthManager(
     @Throws(BiometricNotRegisteredException::class, WrongPinCodeException::class, InvalidRefreshTokenException::class)
     suspend fun loginWithBiometric(activity: FragmentActivity, promptConfig: BiometricHelper.PromptConfig) {
         val refreshTokenEncoded = localAuthenticator.authenticatedWithBiometricLock(LOCK_BIOMETRIC, activity, promptConfig) { secret() }
-        val refreshToken = Adapter.decode(refreshTokenEncoded)
+        val refreshToken = refreshTokenEncoded.asRefreshToken()
         loginWithRefreshToken(refreshToken)
     }
 
@@ -139,7 +137,8 @@ class AuthManager(
 
         // Token rotation
         authResult.refreshToken?.let { newRefreshToken ->
-            localAuthenticator.updateSecret(newRefreshToken, Adapter::encode)
+            val property = Property(newRefreshToken)
+            localAuthenticator.updateSecret(property)
             save()
         }
 
@@ -157,7 +156,8 @@ class AuthManager(
     }
 
     fun startLocalAuthenticationSetup(refreshToken: RefreshToken): AuthSetup {
-        val editor = localAuthenticator.initialize(refreshToken, Adapter::encode)
+        val secret = Property(refreshToken)
+        val editor = localAuthenticator.initialize(secret)
         return AuthSetup(this, editor)
     }
 

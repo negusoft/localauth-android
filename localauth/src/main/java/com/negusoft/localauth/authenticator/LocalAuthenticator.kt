@@ -1,14 +1,18 @@
 package com.negusoft.localauth.authenticator
 
-import com.negusoft.localauth.authenticator.LocalAuthenticator.Editor
 import com.negusoft.localauth.lock.EncodedLockToken
 import com.negusoft.localauth.lock.LockProtected
 import com.negusoft.localauth.lock.LockRegister
+import com.negusoft.localauth.utils.toByteArray
 import com.negusoft.localauth.vault.EncryptedValue
 import com.negusoft.localauth.vault.LocalVault
 import kotlinx.serialization.Serializable
 
 class LocalAuthenticatorException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
+@JvmInline
+@Serializable
+value class Property(val bytes: ByteArray)
 
 /**
  * Authenticator service, allows storing protected properties locally.
@@ -29,7 +33,7 @@ class LocalAuthenticator internal constructor(
     internal var vault: LocalVault? = null,
     internal var secretEncrypted: EncryptedValue? = null,
     internal val secretPropertyRegistry: MutableMap<String, EncryptedValue> = mutableMapOf(),
-    internal val publicPropertyRegistry: MutableMap<String, ByteArray> = mutableMapOf(),
+    internal val publicPropertyRegistry: MutableMap<String, Property> = mutableMapOf(),
     internal val lockRegistry: MutableMap<String, EncodedLockToken> = mutableMapOf()
 ) {
 
@@ -73,21 +77,21 @@ class LocalAuthenticator internal constructor(
         private val openVault: LocalVault.OpenVault
     ) {
         @Throws(LocalAuthenticatorException::class)
-        fun secret(): ByteArray {
+        fun secret(): Property {
             val secretEncrypted = secretEncrypted ?: throw LocalAuthenticatorException("Secret not registered.")
-            return openVault.decrypt(secretEncrypted)
+            return Property(openVault.decrypt(secretEncrypted))
         }
 
         @Throws(LocalAuthenticatorException::class)
-        fun secretProperty(id: String): ByteArray {
+        fun secretProperty(id: String): Property {
             val propertyBytes = secretPropertyRegistry.get(id)
                 ?: throw LocalAuthenticatorException("No property register for id '$id'.")
-            return openVault.decrypt(propertyBytes)
+            return Property(openVault.decrypt(propertyBytes))
         }
 
         @Throws(LocalAuthenticatorException::class)
-        fun decrypt(encrypted: EncryptedValue): ByteArray {
-            return openVault.decrypt(encrypted)
+        fun decrypt(encrypted: EncryptedValue): Property {
+            return Property(openVault.decrypt(encrypted))
         }
 
         fun edit(): Editor {
@@ -105,9 +109,9 @@ class LocalAuthenticator internal constructor(
      * Use the returned Editor to set up authentication methods.
      */
     fun initialize(
-        secret: ByteArray? = null,
-        secretProperties: Map<String, ByteArray>? = null,
-        publicProperties: Map<String, ByteArray>? = null
+        secret: Property? = null,
+        secretProperties: Map<String, Property>? = null,
+        publicProperties: Map<String, Property>? = null
     ): Editor {
         val openVault = LocalVault.create()
         vault = openVault.vault
@@ -128,18 +132,18 @@ class LocalAuthenticator internal constructor(
 
 
     fun initialize(
-        secret: ByteArray? = null,
-        secretProperties: Map<String, ByteArray>? = null,
-        publicProperties: Map<String, ByteArray>? = null,
+        secret: Property? = null,
+        secretProperties: Map<String, Property>? = null,
+        publicProperties: Map<String, Property>? = null,
         editor: Editor.() -> Unit
     ) {
         initialize(secret, secretProperties, publicProperties).apply(editor)
     }
 
     @Throws(LocalAuthenticatorException::class)
-    fun updateSecret(value: ByteArray) {
+    fun updateSecret(value: Property) {
         val vault = vault ?: throw LocalAuthenticatorException("Local Authenticator not initialized")
-        secretEncrypted = vault.encrypt(value)
+        secretEncrypted = vault.encrypt(value.bytes)
     }
 
     fun removeSecret() {
@@ -147,9 +151,9 @@ class LocalAuthenticator internal constructor(
     }
 
     @Throws(LocalAuthenticatorException::class)
-    fun updateSecretProperty(id: String, value: ByteArray) {
+    fun updateSecretProperty(id: String, value: Property) {
         val vault = vault ?: throw LocalAuthenticatorException("Local Authenticator not initialized")
-        val valueEncrypted = vault.encrypt(value)
+        val valueEncrypted = vault.encrypt(value.bytes)
         secretPropertyRegistry[id] = valueEncrypted
     }
 
@@ -157,9 +161,9 @@ class LocalAuthenticator internal constructor(
         secretPropertyRegistry.remove(id)
     }
 
-    fun publicProperty(id: String): ByteArray? = publicPropertyRegistry[id]
+    fun publicProperty(id: String): Property? = publicPropertyRegistry[id]
 
-    fun updatePublicProperty(id: String, value: ByteArray) {
+    fun updatePublicProperty(id: String, value: Property) {
         publicPropertyRegistry[id] = value
     }
 
@@ -172,6 +176,7 @@ class LocalAuthenticator internal constructor(
         val vault = vault ?: throw LocalAuthenticatorException("Local Authenticator not initialized")
         return vault.encrypt(value)
     }
+    fun encrypt(property: Property): EncryptedValue = encrypt(property.bytes)
 
     fun lockEnabled(lockId: String) = lockRegistry.containsKey(lockId)
 
@@ -262,7 +267,7 @@ class LocalAuthenticator internal constructor(
     }
 
     @Throws(LocalAuthenticatorException::class)
-    fun <Token> authenticatedSecret(lockId: String, unlocker: Unlocker<Token>): ByteArray {
+    fun <Token> authenticatedSecret(lockId: String, unlocker: Unlocker<Token>): Property {
         return authenticated(lockId, unlocker) { secret() }
     }
 
@@ -276,15 +281,4 @@ class LocalAuthenticator internal constructor(
         lockRegistry.clear()
     }
 
-}
-
-fun <T> LocalAuthenticator.initialize(secret: T?, encoder: (T) -> ByteArray): Editor {
-    val encodedSecret = secret?.let(encoder)
-    return initialize(encodedSecret)
-}
-fun <T> LocalAuthenticator.updateSecret(secret: T, encoder: (T) -> ByteArray) {
-    updateSecret(encoder(secret))
-}
-fun <T> LocalAuthenticator.Session.secret(decoder: (ByteArray) -> T): T {
-    return decoder(secret())
 }

@@ -92,7 +92,7 @@ fun LocalAuthenticator.Unlockers.passwordLock(password: Password, maxAttempts: I
                 local.resetPasswordLockRetryAttempts(lockId, maxAttempts)
             }
             return result
-        } catch (e: WrongPasswordWithMaxAttemptsException) {
+        } catch (e: WrongPasswordException) {
             if (remainingAttempts == null)
                 throw e
 
@@ -104,10 +104,10 @@ fun LocalAuthenticator.Unlockers.passwordLock(password: Password, maxAttempts: I
 }
 
 fun LocalAuthenticator.resetPasswordLockRetryAttempts(lockId: String, attempts: Int) {
-    updatePublicProperty("${lockId}_attempts_remaining", attempts.toByteArray())
+    updatePublicProperty("${lockId}_attempts_remaining", Property(attempts))
 }
 fun LocalAuthenticator.getPasswordLockRetryAttempts(lockId: String): Int? {
-    return publicProperty("${lockId}_attempts_remaining")?.toInt()
+    return publicProperty("${lockId}_attempts_remaining")?.asInt()
 }
 
 fun LocalAuthenticator.authenticateWithPasswordLock(lockId: String, password: Password, maxAttempts: Int? = null)

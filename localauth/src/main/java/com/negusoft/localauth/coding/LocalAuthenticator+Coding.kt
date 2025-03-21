@@ -1,6 +1,7 @@
 package com.negusoft.localauth.coding
 
 import com.negusoft.localauth.authenticator.LocalAuthenticator
+import com.negusoft.localauth.authenticator.Property
 import com.negusoft.localauth.lock.EncodedLockToken
 import com.negusoft.localauth.vault.EncryptedValue
 import com.negusoft.localauth.vault.LocalVault
@@ -21,6 +22,7 @@ fun LocalAuthenticator.Companion.restore(encoded: ByteArray): LocalAuthenticator
         .mapValues { EncryptedValue(it.value) }
         .toMutableMap()
     val publicPropertyRegistry = decoder.readPropertyMap()
+        .mapValues { Property(it.value) }
         .toMutableMap()
     val lockRegistry = decoder.readPropertyMap()
         .mapValues { EncodedLockToken(it.value) }
@@ -34,6 +36,6 @@ fun LocalAuthenticator.encode() = ByteCoding.encode(byteArrayOf(ENCODING)) {
     writeProperty(vault?.encode())
     writeProperty(secretEncrypted?.bytes)
     writePropertyMap(secretPropertyRegistry.mapValues { it.value.bytes })
-    writePropertyMap(publicPropertyRegistry)
+    writePropertyMap(publicPropertyRegistry.mapValues { it.value.bytes })
     writePropertyMap(lockRegistry.mapValues { it.value.bytes })
 }
