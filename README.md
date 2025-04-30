@@ -25,8 +25,15 @@ The next time the app is launched, you restore the authenticator and unlock it u
 
 ## Setup
 
-TODO: gradle setup and first steps with LocalAuthenticator.
-
+In your gradle build file, add the [Maven Central][1] dependency:
+ - Kotlin
+```groovy
+implementation("com.negusoft.localauth:localauth:0.8.0")
+```
+ - Groovy
+```groovy
+implementation 'com.negusoft.localauth:localauth:0.8.0'
+```
 
 ## Locks
 
@@ -184,4 +191,6 @@ License
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
-    
+
+
+[1]: https://central.sonatype.com/artifact/com.negusoft.localauth/localauth/overview
