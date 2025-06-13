@@ -21,7 +21,7 @@ mavenPublishing {
 
     signAllPublications()
 
-    coordinates("com.negusoft.localauth", "localauth", "0.8.0")
+    coordinates("com.negusoft.localauth", "localauth", "0.8.1")
 
     pom {
         name.set("LocalAuth")

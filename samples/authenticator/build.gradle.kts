@@ -57,7 +57,7 @@ android {
 dependencies {
 
     implementation(project(":localauth"))
-//    implementation("com.negusoft.localauth:localauth:0.8.0")
+//    implementation("com.negusoft.localauth:localauth:{version}")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

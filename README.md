@@ -28,11 +28,11 @@ The next time the app is launched, you restore the authenticator and unlock it u
 In your gradle build file, add the [Maven Central][1] dependency:
  - Kotlin
 ```groovy
-implementation("com.negusoft.localauth:localauth:0.8.0")
+implementation("com.negusoft.localauth:localauth:0.8.1")
 ```
  - Groovy
 ```groovy
-implementation 'com.negusoft.localauth:localauth:0.8.0'
+implementation 'com.negusoft.localauth:localauth:0.8.1'
 ```
 
 ## Locks
