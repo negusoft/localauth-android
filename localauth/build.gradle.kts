@@ -27,7 +27,7 @@ mavenPublishing {
         name.set("LocalAuth")
         description.set("Protect critical user data by defining authentication methods to access it, such as a password or biometric verification.")
         inceptionYear.set("2024")
-        url.set("https://github.com/username/mylibrary/")
+        url.set("https://github.com/negusoft/localauth-android")
         licenses {
             license {
                 name.set("Apache License, Version 2.0")
